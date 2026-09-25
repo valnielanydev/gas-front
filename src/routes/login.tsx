@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
+import { homePathForRoles } from "@/auth/roles";
 import { authService } from "@/services/auth.service";
 import { formatCpf, isValidCpf } from "@/lib/cpf";
 import { onlyDigits } from "@/lib/utils";
@@ -19,7 +20,7 @@ export default LoginPage;
 type Step = "client" | "signup" | "staff";
 
 function LoginPage() {
-  const { signIn, isAuthenticated, isLoading, hasRole } = useAuth();
+  const { signIn, isAuthenticated, isLoading, roles } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>("client");
@@ -40,11 +41,8 @@ function LoginPage() {
 
   useEffect(() => {
     if (isLoading || !isAuthenticated) return;
-    if (hasRole("master")) navigate({ to: "/master", replace: true });
-    else if (hasRole("reseller_admin")) navigate({ to: "/app", replace: true });
-    else if (hasRole("driver")) navigate({ to: "/driver", replace: true });
-    else navigate({ to: "/customer", replace: true });
-  }, [hasRole, isAuthenticated, isLoading, navigate]);
+    navigate({ to: homePathForRoles(roles), replace: true });
+  }, [roles, isAuthenticated, isLoading, navigate]);
 
   const onSubmitClient = async (e: FormEvent) => {
     e.preventDefault();

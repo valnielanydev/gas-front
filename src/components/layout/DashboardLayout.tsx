@@ -1,9 +1,9 @@
 import { Link, useNavigate, useLocation } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
-import { Flame, LogOut, Loader2, KeyRound } from "lucide-react";
+import { Flame, LogOut, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/auth/AuthProvider";
+import { RequireRole } from "@/auth/RequireRole";
 import type { AppRole } from "@/types/auth";
 import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
@@ -21,27 +21,18 @@ interface DashboardLayoutProps {
   requiredRole: AppRole;
 }
 
-export function DashboardLayout({ title, navItems, children, requiredRole }: DashboardLayoutProps) {
-  const { isAuthenticated, isLoading, hasRole, signOut, user } = useAuth();
+export function DashboardLayout({ requiredRole, ...props }: DashboardLayoutProps) {
+  return (
+    <RequireRole role={requiredRole}>
+      <DashboardShell {...props} />
+    </RequireRole>
+  );
+}
+
+function DashboardShell({ title, navItems, children }: Omit<DashboardLayoutProps, "requiredRole">) {
+  const { signOut, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated) {
-      navigate({ to: "/login", replace: true });
-    } else if (!hasRole(requiredRole)) {
-      navigate({ to: "/", replace: true });
-    }
-  }, [isAuthenticated, isLoading, hasRole, requiredRole, navigate]);
-
-  if (isLoading || !isAuthenticated || !hasRole(requiredRole)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   const handleLogout = async () => {
     await signOut();

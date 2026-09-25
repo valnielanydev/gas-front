@@ -1,8 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { Loader2, Truck } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "@/auth/AuthProvider";
 import { useDriverDashboard } from "@/hooks/useDriverDashboard";
 import { DriverBottomNav } from "@/components/layout/DriverBottomNav";
 import { DriverNavigation } from "@/components/layout/DriverNavigation";
@@ -18,8 +17,6 @@ import { orderService } from "@/services/order.service";
 export const Route = createFileRoute("/driver/")({ component: DriverPage });
 
 function DriverPage() {
-  const { isAuthenticated, isLoading: authLoading, hasRole } = useAuth();
-  const navigate = useNavigate();
   const d = useDriverDashboard();
 
   const [completeOpen, setCompleteOpen] = useState(false);
@@ -29,15 +26,6 @@ function DriverPage() {
   const [ratingValue, setRatingValue] = useState<number>(5);
   const [ratingComment, setRatingComment] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (!isAuthenticated) {
-      navigate({ to: "/login", replace: true });
-    } else if (!hasRole("driver")) {
-      navigate({ to: "/", replace: true });
-    }
-  }, [authLoading, isAuthenticated, hasRole, navigate]);
 
   const confirmComplete = async () => {
     const deliveredOrderId = await d.completeDelivery(code);
@@ -69,7 +57,7 @@ function DriverPage() {
     }
   };
 
-  if (authLoading || d.loading) {
+  if (d.loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
