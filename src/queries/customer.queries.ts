@@ -7,6 +7,8 @@ export function useCustomerActiveOrder(userId: string | undefined) {
     queryKey: customerKeys.activeOrder(userId),
     enabled: !!userId,
     queryFn: () => customerService.activeOrder(),
+    // Changes outside this screen (order placed, delivered, cancelled): always revalidate
+    staleTime: 0,
   });
 }
 
