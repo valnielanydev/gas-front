@@ -64,9 +64,7 @@ export function OrderDialog({
   const [needsChange, setNeedsChange] = useState(false);
   const [changeFor, setChangeFor] = useState("");
   const [reference, setReference] = useState("");
-  const [receiverName, setReceiverName] = useState(
-    user?.fullName || user?.email?.split("@")[0] || "",
-  );
+  const [receiverName, setReceiverName] = useState(user?.name || user?.email?.split("@")[0] || "");
   const [identifyByName, setIdentifyByName] = useState(true);
   const [deliveryMode, setDeliveryMode] = useState<"current" | "custom">("current");
   const [customAddress, setCustomAddress] = useState<AddressValue>(emptyAddress);

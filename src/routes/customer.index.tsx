@@ -87,11 +87,6 @@ function CustomerHome() {
     productsRequestRef.current = 0;
   }, []);
 
-  // Open address drawer on any geolocation error (denied, timeout, or unavailable)
-  useEffect(() => {
-    if (geoError) setManualOpen(true);
-  }, [geoError]);
-
   useEffect(() => {
     resetFlowState();
   }, [user?.id, resetFlowState]);
@@ -215,7 +210,7 @@ function CustomerHome() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">GasFlow</p>
             <h1 className="truncate text-2xl font-black tracking-tight">
               Olá
-              {user?.fullName ? `, ${user.fullName.split(" ")[0]}` : ""}
+              {user?.name ? `, ${user.name.split(" ")[0]}` : ""}
             </h1>
           </div>
           {hasActiveOrder && activeOrderId && (

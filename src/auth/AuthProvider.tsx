@@ -5,7 +5,7 @@ export type AppRole = "master" | "reseller_admin" | "driver" | "customer";
 
 export interface UserProfile {
   id: string;
-  fullName: string;
+  name: string;
   email?: string;
   cpf?: string;
   phone?: string;
@@ -53,7 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (identifier: string, password: string) => {
-    const data = await api.post<SessionData>("/auth/login", { identifier, password });
+    const isCpf = /^\d{11}$/.test(identifier);
+    const body = isCpf ? { cpf: identifier, password } : { identifier, password };
+    await api.post<unknown>("/auth/login", body);
+    const data = await api.get<SessionData>("/auth/me");
     applySession(data);
   };
 
