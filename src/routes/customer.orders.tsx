@@ -9,84 +9,41 @@ import { customerService } from "@/services/customer.service";
 import { orderService } from "@/services/order.service";
 import { useAuth } from "@/auth/AuthProvider";
 import { fmtMoney } from "@/lib/constants";
-import { RatingCard, type DeliveryRating } from "@/components/rating/RatingCard";
-import { getOrderStatusLabel } from "@/i18n/ptBR";
+import { RatingCard } from "@/components/rating/RatingCard";
+import type { DriverMetrics } from "@/types/customer";
+import type { CustomerOrder, DeliveryRating } from "@/types/order";
+import { getOrderStatusLabel, getPaymentMethodLabel, isOrderActive } from "@/lib/order-status";
 
 export const Route = createFileRoute("/customer/orders")({
   component: MyOrders,
 });
 
-type Row = {
-  id: string;
-  status:
-    | "pending"
-    | "accepted"
-    | "in_delivery"
-    | "delivered"
-    | "cancelled"
-    | "cancelado_pelo_motorista"
-    | "cancelled_by_customer";
-  delivery_address: string;
-  total_amount: number;
-  created_at: string;
-  quantity: number;
-  payment_method: "cash" | "card" | "pix";
-  reseller_id: string;
-  product_id: string;
-};
-
 type OrderDetails = {
-  order: Row;
+  order: CustomerOrder;
   resellerName: string | null;
   productName: string | null;
   rating: DeliveryRating | null;
 };
-
-interface OrdersResponse {
-  orders: Row[];
-  hasMore: boolean;
-}
-
-interface OrderDetailResponse {
-  resellerName: string | null;
-  productName: string | null;
-  rating: DeliveryRating | null;
-}
 
 const PAGE_SIZE = 10;
-const TRACKING_STATUSES = new Set<Row["status"]>(["pending", "accepted", "in_delivery"]);
-const STATUS_LABEL: Record<Row["status"], string> = {
-  pending: getOrderStatusLabel("pending"),
-  accepted: getOrderStatusLabel("accepted"),
-  in_delivery: getOrderStatusLabel("in_delivery"),
-  delivered: getOrderStatusLabel("delivered"),
-  cancelled: getOrderStatusLabel("cancelled"),
-  cancelado_pelo_motorista: getOrderStatusLabel("cancelado_pelo_motorista"),
-  cancelled_by_customer: getOrderStatusLabel("cancelled_by_customer"),
-};
-const PAYMENT_LABEL: Record<Row["payment_method"], string> = {
-  cash: "Dinheiro",
-  card: "Cartão",
-  pix: "Pix",
-};
 
 function MyOrders() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const [rows, setRows] = useState<CustomerOrder[] | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [ratingsByOrder, setRatingsByOrder] = useState<Record<string, DeliveryRating>>({});
-  const [driverMetricsByOrder, setDriverMetricsByOrder] = useState<
-    Record<string, { rating: number | null; delivery_time_rating: number | null }>
-  >({});
+  const [driverMetricsByOrder, setDriverMetricsByOrder] = useState<Record<string, DriverMetrics>>(
+    {},
+  );
   const [selectedOrder, setSelectedOrder] = useState<OrderDetails | null>(null);
   const [loadingOrderDetails, setLoadingOrderDetails] = useState(false);
 
   const fetchOrders = async (nextOffset: number, append: boolean) => {
     if (!user) return;
-    const data: OrdersResponse = await customerService.listOrders<Row>(PAGE_SIZE, nextOffset);
+    const data = await customerService.listOrders(PAGE_SIZE, nextOffset);
     const incoming = data.orders ?? [];
     setRows((prev) => {
       if (!append || !prev) return incoming;
@@ -110,7 +67,7 @@ function MyOrders() {
     const deliveredIds = rows.filter((o) => o.status === "delivered").map((o) => o.id);
     if (!deliveredIds.length) return;
     customerService
-      .ratingsForOrders<DeliveryRating>(deliveredIds)
+      .ratingsForOrders(deliveredIds)
       .then((mapped) => setRatingsByOrder((prev) => ({ ...prev, ...mapped })))
       .catch(() => {});
   }, [rows]);
@@ -124,15 +81,15 @@ function MyOrders() {
       .catch(() => {});
   }, [rows]);
 
-  const handleOrderClick = async (order: Row) => {
-    if (TRACKING_STATUSES.has(order.status)) {
+  const handleOrderClick = async (order: CustomerOrder) => {
+    if (isOrderActive(order.status)) {
       navigate({ to: "/customer/order/$orderId", params: { orderId: order.id } });
       return;
     }
     setLoadingOrderDetails(true);
     setSelectedOrder(null);
     try {
-      const detail = await orderService.detail<OrderDetailResponse>(order.id);
+      const detail = await orderService.detail(order.id);
       setSelectedOrder({
         order,
         productName: detail.productName ?? null,
@@ -186,7 +143,7 @@ function MyOrders() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">{fmtMoney(o.total_amount)}</span>
                     <Badge variant="outline" className="text-[10px]">
-                      {STATUS_LABEL[o.status]}
+                      {getOrderStatusLabel(o.status)}
                     </Badge>
                   </div>
                   <div className="truncate text-xs text-muted-foreground">{o.delivery_address}</div>
@@ -262,7 +219,7 @@ function MyOrders() {
                 </p>
                 <p>
                   <strong>Forma de pagamento:</strong>{" "}
-                  {PAYMENT_LABEL[selectedOrder.order.payment_method]}
+                  {getPaymentMethodLabel(selectedOrder.order.payment_method)}
                 </p>
                 <p>
                   <strong>Revendedora:</strong> {selectedOrder.resellerName ?? "—"}

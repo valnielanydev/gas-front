@@ -1,5 +1,6 @@
 import { CheckCircle2, Clock, Loader2, Truck, XCircle } from "lucide-react";
-import type { FullOrder } from "@/types/api";
+import { isOrderCancelled } from "@/lib/order-status";
+import type { FullOrder } from "@/types/order";
 
 const STEPS: { key: string; label: string; icon: React.ElementType }[] = [
   { key: "pending", label: "Aguardando motorista", icon: Clock },
@@ -22,11 +23,7 @@ export function OrderStatusSteps({ order }: Props) {
     );
   }
 
-  if (
-    order.status === "cancelled" ||
-    order.status === "cancelado_pelo_motorista" ||
-    order.status === "cancelled_by_customer"
-  ) {
+  if (isOrderCancelled(order.status)) {
     return (
       <div className="flex items-center gap-3 text-destructive">
         <XCircle className="h-6 w-6" />

@@ -1,7 +1,8 @@
 import { MapPin, Star, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import type { FullOrder, TrackingDriver } from "@/types/api";
+import { isOrderFinished } from "@/lib/order-status";
+import type { FullOrder, TrackingDriver } from "@/types/order";
 import { formatEta, formatKm } from "@/lib/distance";
 
 interface Props {
@@ -55,24 +56,21 @@ export function DriverDetailsDrawer({
             </div>
           </div>
 
-          {liveTrip &&
-            order.status !== "delivered" &&
-            order.status !== "cancelled" &&
-            order.status !== "cancelado_pelo_motorista" && (
-              <div className="flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2 text-sm">
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5" /> {formatKm(liveTrip.km)}
-                </span>
-                <span className="font-semibold text-primary">{formatEta(liveTrip.eta)}</span>
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {liveTrip.source === "route"
-                    ? "rota"
-                    : liveTrip.source === "driver"
-                      ? "ao vivo"
-                      : "estimado"}
-                </span>
-              </div>
-            )}
+          {liveTrip && !isOrderFinished(order.status) && (
+            <div className="flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2 text-sm">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5" /> {formatKm(liveTrip.km)}
+              </span>
+              <span className="font-semibold text-primary">{formatEta(liveTrip.eta)}</span>
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                {liveTrip.source === "route"
+                  ? "rota"
+                  : liveTrip.source === "driver"
+                    ? "ao vivo"
+                    : "estimado"}
+              </span>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <Button
