@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Shield, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,68 +28,41 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { adminService } from "@/services/admin.service";
+import {
+  useAdminResellers,
+  useAdminUsers,
+  useDemoteFromMaster,
+  useLinkUserToReseller,
+  usePromoteToMaster,
+} from "@/queries/admin.queries";
 import { useAuth } from "@/auth/AuthProvider";
 
 export const Route = createFileRoute("/master/users")({
   component: UsersPage,
 });
 
-interface UserRow {
-  id: string;
-  full_name: string | null;
-  phone: string | null;
-  roles: string[];
-  reseller_id: string | null;
-  reseller_name: string | null;
-}
-
-interface Reseller {
-  id: string;
-  name: string;
-}
-
 function UsersPage() {
-  const qc = useQueryClient();
   const { user: currentUser } = useAuth();
   const [linkOpen, setLinkOpen] = useState<string | null>(null);
   const [linkResellerId, setLinkResellerId] = useState<string>("");
   const [linkRole, setLinkRole] = useState<"reseller_admin" | "driver">("reseller_admin");
 
-  const { data: users, isLoading } = useQuery({
-    queryKey: ["all-users"],
-    queryFn: () => adminService.users<UserRow>(),
-  });
+  const { data: users, isLoading } = useAdminUsers();
+  const { data: resellers } = useAdminResellers({ active: true });
 
-  const { data: resellers } = useQuery({
-    queryKey: ["resellers-list"],
-    queryFn: () => adminService.resellers<Reseller>({ active: true }),
-  });
-
-  const promoteMaster = useMutation({
-    mutationFn: (userId: string) => adminService.promoteToMaster(userId),
-    onSuccess: () => {
-      toast.success("Usuário promovido a Master");
-      qc.invalidateQueries({ queryKey: ["all-users"] });
-    },
+  const promoteMaster = usePromoteToMaster({
+    onSuccess: () => toast.success("Usuário promovido a Master"),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
-  const demoteMaster = useMutation({
-    mutationFn: (userId: string) => adminService.demoteFromMaster(userId),
-    onSuccess: () => {
-      toast.success("Permissão Master removida");
-      qc.invalidateQueries({ queryKey: ["all-users"] });
-    },
+  const demoteMaster = useDemoteFromMaster({
+    onSuccess: () => toast.success("Permissão Master removida"),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
-  const linkToReseller = useMutation({
-    mutationFn: (userId: string) =>
-      adminService.linkUserToReseller(userId, linkResellerId, linkRole),
+  const linkToReseller = useLinkUserToReseller({
     onSuccess: () => {
       toast.success("Vínculo criado");
-      qc.invalidateQueries({ queryKey: ["all-users"] });
       setLinkOpen(null);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
@@ -212,7 +184,13 @@ function UsersPage() {
                           </div>
                           <DialogFooter>
                             <Button
-                              onClick={() => linkToReseller.mutate(u.id)}
+                              onClick={() =>
+                                linkToReseller.mutate({
+                                  userId: u.id,
+                                  resellerId: linkResellerId,
+                                  role: linkRole,
+                                })
+                              }
                               disabled={!linkResellerId || linkToReseller.isPending}
                             >
                               {linkToReseller.isPending && (

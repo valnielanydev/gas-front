@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2, Package, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { resellerService, type Product } from "@/services/reseller.service";
+import { useDeleteProduct, useResellerProducts, useSaveProduct } from "@/queries/reseller.queries";
+import type { Product } from "@/types/reseller";
 import { useAuth } from "@/auth/AuthProvider";
 
 export const Route = createFileRoute("/app/products")({
@@ -34,45 +34,34 @@ export const Route = createFileRoute("/app/products")({
 
 function ProductsPage() {
   const { resellerId } = useAuth();
-  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState({ name: "", description: "", price: "", is_available: true });
 
-  const { data: products, isLoading } = useQuery({
-    queryKey: ["products", resellerId],
-    enabled: !!resellerId,
-    queryFn: () => resellerService.products(resellerId!),
-  });
+  const { data: products, isLoading } = useResellerProducts(resellerId);
 
-  const upsertMutation = useMutation({
-    mutationFn: () => {
-      const payload = {
-        name: form.name,
-        description: form.description || null,
-        price: Number(form.price),
-        is_available: form.is_available,
-      };
-      if (editing) {
-        return resellerService.updateProduct(editing.id, payload);
-      }
-      return resellerService.createProduct(resellerId!, payload);
-    },
-    onSuccess: () => {
-      toast.success(editing ? "Produto atualizado" : "Produto criado");
-      qc.invalidateQueries({ queryKey: ["products"] });
+  const upsertMutation = useSaveProduct(resellerId, {
+    onSuccess: (_data, { id }) => {
+      toast.success(id ? "Produto atualizado" : "Produto criado");
       setOpen(false);
       reset();
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => resellerService.deleteProduct(id),
-    onSuccess: () => {
-      toast.success("Produto removido");
-      qc.invalidateQueries({ queryKey: ["products"] });
-    },
+  const saveProduct = () =>
+    upsertMutation.mutate({
+      id: editing?.id ?? null,
+      payload: {
+        name: form.name,
+        description: form.description || null,
+        price: Number(form.price),
+        is_available: form.is_available,
+      },
+    });
+
+  const deleteMutation = useDeleteProduct(resellerId, {
+    onSuccess: () => toast.success("Produto removido"),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
@@ -160,7 +149,7 @@ function ProductsPage() {
                 Cancelar
               </Button>
               <Button
-                onClick={() => upsertMutation.mutate()}
+                onClick={saveProduct}
                 disabled={!form.name || !form.price || upsertMutation.isPending}
               >
                 {upsertMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
