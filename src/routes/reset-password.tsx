@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getApiBase } from "@/lib/constants";
+import { authService } from "@/services/auth.service";
 
 export const Route = createFileRoute("/reset-password")({
   component: ResetPasswordPage,
@@ -46,17 +46,10 @@ function ResetPasswordPage() {
     e.preventDefault();
     if (password.length < 6) return toast.error("Mínimo 6 caracteres");
     if (password !== confirm) return toast.error("As senhas não coincidem");
+    if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBase()}/auth/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? `Erro ${res.status}`);
-      }
+      await authService.resetPassword(token, password);
       toast.success("Senha redefinida! Faça login novamente.");
       navigate({ to: "/login" });
     } catch (err) {

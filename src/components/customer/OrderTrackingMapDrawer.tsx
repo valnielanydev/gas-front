@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { useLeafletMap } from "@/hooks/useLeafletMap";
-import type { Coords, FullOrder } from "@/types/api";
+import type { Coords } from "@/types/common";
+import type { FullOrder } from "@/types/order";
 import { haversineKm, formatEta } from "@/lib/distance";
 import { SPEED_KMH } from "@/lib/constants";
+import { isOrderFinished } from "@/lib/order-status";
+import { geoService } from "@/services/geo.service";
 
 interface Props {
   open: boolean;
@@ -13,13 +16,6 @@ interface Props {
   driverCoords: Coords | null;
   onRouteUpdate: (distanceKm: number, etaMin: number) => void;
 }
-
-const INACTIVE_STATUSES = new Set([
-  "delivered",
-  "cancelled",
-  "cancelado_pelo_motorista",
-  "cancelled_by_customer",
-]);
 
 export function OrderTrackingMapDrawer({
   open,
@@ -96,33 +92,18 @@ export function OrderTrackingMapDrawer({
     let cancelled = false;
     const fetchRoute = async () => {
       try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${driverCoords.lng},${driverCoords.lat};${customerCoords.lng},${customerCoords.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = (await res.json()) as {
-          routes?: Array<{
-            geometry: { coordinates: [number, number][] };
-            distance: number;
-            duration: number;
-          }>;
-        };
-        const route = data?.routes?.[0];
+        const route = await geoService.drivingRoute(driverCoords, customerCoords);
         if (!route || cancelled) throw new Error("no-route");
-        const coords = route.geometry.coordinates.map(
-          ([lng, lat]) => [lat, lng] as [number, number],
-        );
         const leaflet = L.current;
         if (!leaflet) return;
         if (routeLineRef.current) {
-          routeLineRef.current.setLatLngs(coords);
+          routeLineRef.current.setLatLngs(route.path);
         } else {
           routeLineRef.current = leaflet
-            .polyline(coords, { color: "#2563eb", weight: 5 })
+            .polyline(route.path, { color: "#2563eb", weight: 5 })
             .addTo(mapRef.current!);
         }
-        onRouteUpdate(
-          Number(route.distance) / 1000,
-          Math.max(1, Math.round(Number(route.duration) / 60)),
-        );
+        onRouteUpdate(route.distanceKm, Math.max(1, Math.round(route.durationMin)));
         setRouteFreshAt(Date.now());
       } catch {
         const km = haversineKm(driverCoords, customerCoords);
@@ -148,7 +129,7 @@ export function OrderTrackingMapDrawer({
     onRouteUpdate,
   ]);
 
-  const isActive = !INACTIVE_STATUSES.has(order.status);
+  const isActive = !isOrderFinished(order.status);
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>

@@ -4,9 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLeafletMap } from "@/hooks/useLeafletMap";
-import type { Coords, OrderRow } from "@/types/api";
-import { fmtMoney, payLabel, SPEED_KMH } from "@/lib/constants";
+import type { Coords } from "@/types/common";
+import type { OrderRow } from "@/types/order";
+import { fmtMoney, SPEED_KMH } from "@/lib/constants";
+import { getPaymentMethodLabel, isDriverAssigned } from "@/lib/order-status";
 import { formatKm, haversineKm } from "@/lib/distance";
+import { geoService } from "@/services/geo.service";
 
 interface Props {
   order: OrderRow;
@@ -110,29 +113,20 @@ export function ActiveOrderCard({
       if (!map) return;
       setRoutingLoading(true);
       try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${driverCoords.lng},${driverCoords.lat};${customerCoords.lng},${customerCoords.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-        const route = data?.routes?.[0];
+        const route = await geoService.drivingRoute(driverCoords, customerCoords);
         if (!route || cancelled) return;
         const leaflet = L.current;
         if (!leaflet) return;
-        const coords = (route.geometry.coordinates as [number, number][]).map(
-          ([lng, lat]) => [lat, lng] as [number, number],
-        );
         if (routeLineRef.current) {
-          routeLineRef.current.setLatLngs(coords);
+          routeLineRef.current.setLatLngs(route.path);
         } else {
           routeLineRef.current = leaflet
-            .polyline(coords, { color: "#2563eb", weight: 5 })
+            .polyline(route.path, { color: "#2563eb", weight: 5 })
             .addTo(map);
         }
         const routeLine = routeLineRef.current;
         if (routeLine) map.fitBounds(routeLine.getBounds(), { padding: [24, 24] });
-        setRouteInfo({
-          distanceKm: Number(route.distance) / 1000,
-          durationMin: Number(route.duration) / 60,
-        });
+        setRouteInfo({ distanceKm: route.distanceKm, durationMin: route.durationMin });
       } catch {
         const km = haversineKm(driverCoords, customerCoords);
         setRouteInfo({
@@ -182,7 +176,8 @@ export function ActiveOrderCard({
             ) : (
               <CreditCard className="h-3.5 w-3.5" />
             )}
-            {payLabel(order.payment_method)} • {order.quantity}× {fmtMoney(order.unit_price)}
+            {getPaymentMethodLabel(order.payment_method)} • {order.quantity}×{" "}
+            {fmtMoney(order.unit_price)}
           </div>
         </div>
 
@@ -282,7 +277,7 @@ export function ActiveOrderCard({
           </Button>
         )}
 
-        {(order.status === "accepted" || order.status === "in_delivery") && (
+        {isDriverAssigned(order.status) && (
           <Button variant="outline" className="w-full" onClick={onCancel} disabled={cancelling}>
             {cancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Cancelar entrega

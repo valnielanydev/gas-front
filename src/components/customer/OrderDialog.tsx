@@ -12,20 +12,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AddressAutocomplete } from "@/components/AddressAutocomplete";
-import { emptyAddress } from "@/components/AddressMapPicker";
-import type { AddressValue } from "@/components/AddressMapPicker";
+import { AddressAutocomplete } from "@/components/address/AddressAutocomplete";
+import { emptyAddress } from "@/components/address/AddressMapPicker";
+import type { AddressValue } from "@/components/address/AddressMapPicker";
 import { toast } from "sonner";
 import { estimateEtaMinutes, formatEta } from "@/lib/distance";
-import { fmtMoney, payLabel, NOMINATIM_HEADERS } from "@/lib/constants";
-import type { UserProfile } from "@/auth/AuthProvider";
+import { fmtMoney } from "@/lib/constants";
+import { getPaymentMethodLabel } from "@/lib/order-status";
+import type { UserProfile } from "@/types/auth";
 import { orderService } from "@/services/order.service";
-import type { Reseller, Product } from "@/services/reseller.service";
-
-export type { Product } from "@/services/reseller.service";
+import { geoService } from "@/services/geo.service";
+import type { NearbyReseller, Product } from "@/types/reseller";
 
 const AddressMapPicker = lazy(() =>
-  import("@/components/AddressMapPicker").then((m) => ({ default: m.AddressMapPicker })),
+  import("@/components/address/AddressMapPicker").then((m) => ({ default: m.AddressMapPicker })),
 );
 
 function AddressMapPickerFallback() {
@@ -41,7 +41,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: Product | null;
-  reseller: Reseller | null;
+  reseller: NearbyReseller | null;
   user: UserProfile | null;
   initialAddress: string;
   initialPos: [number, number] | null;
@@ -121,14 +121,10 @@ export function OrderDialog({
       : (initialPos?.[1] ?? null);
     if ((!deliveryLat || !deliveryLng) && !usingCustom) {
       try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(resolved)}`,
-          { headers: NOMINATIM_HEADERS },
-        );
-        const arr = (await res.json()) as Array<{ lat: string; lon: string }>;
-        if (arr.length) {
-          deliveryLat = parseFloat(arr[0].lat);
-          deliveryLng = parseFloat(arr[0].lon);
+        const [match] = await geoService.searchAddress(resolved);
+        if (match) {
+          deliveryLat = match.lat;
+          deliveryLng = match.lon;
         }
       } catch {
         // keep GPS fallback
@@ -422,7 +418,7 @@ export function OrderDialog({
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">💳 Pagamento</p>
-                <p className="text-sm font-medium">{payLabel(paymentMethod)}</p>
+                <p className="text-sm font-medium">{getPaymentMethodLabel(paymentMethod)}</p>
                 {paymentMethod === "cash" && (
                   <p className="text-xs text-muted-foreground">
                     {needsChange

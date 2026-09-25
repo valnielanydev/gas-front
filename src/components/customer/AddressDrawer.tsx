@@ -10,13 +10,13 @@ import {
   DrawerFooter,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { AddressAutocomplete } from "@/components/AddressAutocomplete";
-import { emptyAddress } from "@/components/AddressMapPicker";
-import type { AddressValue } from "@/components/AddressMapPicker";
-import { NOMINATIM_HEADERS } from "@/lib/constants";
+import { AddressAutocomplete } from "@/components/address/AddressAutocomplete";
+import { emptyAddress } from "@/components/address/AddressMapPicker";
+import type { AddressValue } from "@/components/address/AddressMapPicker";
+import { geoService } from "@/services/geo.service";
 
 const AddressMapPicker = lazy(() =>
-  import("@/components/AddressMapPicker").then((m) => ({ default: m.AddressMapPicker })),
+  import("@/components/address/AddressMapPicker").then((m) => ({ default: m.AddressMapPicker })),
 );
 
 function AddressMapPickerFallback() {
@@ -90,19 +90,12 @@ export function AddressDrawer({ open, onOpenChange, near, onConfirm }: Props) {
     if (!query.trim()) return;
     setGeocoding(true);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
-        { headers: NOMINATIM_HEADERS },
-      );
-      const arr = (await res.json()) as Array<{ lat: string; lon: string; display_name: string }>;
-      if (!arr.length) {
+      const [match] = await geoService.searchAddress(query, { countryCodes: null });
+      if (!match) {
         toast.error("Endereço não encontrado");
         return;
       }
-      confirm({
-        address: arr[0].display_name,
-        pos: [parseFloat(arr[0].lat), parseFloat(arr[0].lon)],
-      });
+      confirm({ address: match.displayName, pos: [match.lat, match.lon] });
     } catch {
       toast.error("Falha ao buscar endereço");
     } finally {

@@ -1,16 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api } from "@/integrations/api/client";
-
-export type AppRole = "master" | "reseller_admin" | "driver" | "customer";
-
-export interface UserProfile {
-  id: string;
-  name: string;
-  email?: string;
-  cpf?: string;
-  phone?: string;
-  address?: string | null;
-}
+import { authService } from "@/services/auth.service";
+import type { AppRole, SessionData, UserProfile } from "@/types/auth";
 
 export interface AuthState {
   user: UserProfile | null;
@@ -26,12 +16,6 @@ export interface AuthState {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
-interface SessionData {
-  user: UserProfile;
-  roles: AppRole[];
-  resellerId?: string | null;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
@@ -45,8 +29,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    api
-      .get<SessionData>("/auth/me")
+    authService
+      .me()
       .then(applySession)
       .catch(() => {})
       .finally(() => setIsLoading(false));
@@ -55,20 +39,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (identifier: string, password: string) => {
     const isCpf = /^\d{11}$/.test(identifier);
     const body = isCpf ? { cpf: identifier, password } : { identifier, password };
-    await api.post<unknown>("/auth/login", body);
-    const data = await api.get<SessionData>("/auth/me");
+    await authService.login(body);
+    const data = await authService.me();
     applySession(data);
   };
 
   const signOut = async () => {
-    await api.post("/auth/logout").catch(() => {});
+    await authService.logout().catch(() => {});
     setUser(null);
     setRoles([]);
     setResellerId(null);
   };
 
   const refresh = async () => {
-    const data = await api.get<SessionData>("/auth/me");
+    const data = await authService.me();
     applySession(data);
   };
 
