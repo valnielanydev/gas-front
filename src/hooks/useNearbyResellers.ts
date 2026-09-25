@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { resellerService } from "@/services/reseller.service";
-import type { Reseller } from "@/services/reseller.service";
-
-export type { Reseller } from "@/services/reseller.service";
+import type { NearbyReseller } from "@/types/reseller";
 
 const PAGE_SIZE = 3;
 
 export function useNearbyResellers(pos: [number, number] | null) {
-  const [resellers, setResellers] = useState<Reseller[]>([]);
+  const [resellers, setResellers] = useState<NearbyReseller[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);

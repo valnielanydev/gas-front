@@ -1,54 +1,45 @@
 import { api } from "@/integrations/api/client";
-
-export type UpdateDriverProfilePayload = {
-  phone: string | null;
-  avatarUrl: string | null;
-  notes: string | null;
-  additionalInfo: string | null;
-};
-
-export type DriverSignupPayload = {
-  token: string | null;
-  password: string;
-  fullName: string;
-  phone: string;
-  document: string;
-  vehiclePlate: string;
-  vehicleType: string;
-  vehicleModel: string | null;
-};
+import type { Paginated } from "@/types/common";
+import type {
+  DriverDashboardData,
+  DriverOnlineStatus,
+  DriverProfile,
+  DriverRow,
+  DriverSignupPayload,
+  InviteValidation,
+  OrderCustomerDetails,
+  UpdateDriverProfilePayload,
+} from "@/types/driver";
+import type { DriverDelivery, OrderRow } from "@/types/order";
 
 export const driverService = {
   updateLocation: (lat: number, lng: number) => api.patch("/drivers/me/location", { lat, lng }),
 
-  updateStatus: (status: "offline" | "available" | "busy") =>
-    api.patch("/drivers/me/status", { status }),
+  updateStatus: (status: DriverOnlineStatus) => api.patch("/drivers/me/status", { status }),
 
-  dashboard: <T = unknown>() => api.get<T>("/drivers/me/dashboard"),
+  dashboard: () => api.get<DriverDashboardData>("/drivers/me/dashboard"),
 
-  startDelivery: <T = unknown>(orderId: string) => api.post<T>(`/orders/${orderId}/start-delivery`),
+  startDelivery: (orderId: string) => api.post<OrderRow>(`/orders/${orderId}/start-delivery`),
 
-  me: <T>() => api.get<T>("/drivers/me"),
+  me: () => api.get<DriverRow>("/drivers/me"),
 
-  myProfile: <T>() => api.get<T>("/drivers/me/profile"),
+  myProfile: () => api.get<DriverProfile>("/drivers/me/profile"),
 
   updateMyProfile: (payload: UpdateDriverProfilePayload) =>
     api.patch("/drivers/me/profile", payload),
 
-  activeOrder: <T>() => api.get<T | null>("/drivers/me/active-order"),
+  activeOrder: () => api.get<OrderRow | null>("/drivers/me/active-order"),
 
-  pendingOrders: <T>() => api.get<T[]>("/drivers/me/pending-orders"),
+  pendingOrders: () => api.get<OrderRow[]>("/drivers/me/pending-orders"),
 
-  customerDetails: <T>(orderIds: string[]) =>
-    api.post<T[]>("/drivers/me/customer-details", { orderIds }),
+  customerDetails: (orderIds: string[]) =>
+    api.post<OrderCustomerDetails[]>("/drivers/me/customer-details", { orderIds }),
 
-  deliveries: <T>(limit: number, offset: number) =>
-    api.get<{ orders: T[]; hasMore: boolean }>(
-      `/drivers/me/deliveries?limit=${limit}&offset=${offset}`,
-    ),
+  deliveries: (limit: number, offset: number) =>
+    api.get<Paginated<DriverDelivery>>(`/drivers/me/deliveries?limit=${limit}&offset=${offset}`),
 
-  validateInvite: <T>(token: string) =>
-    api.get<T>(`/invites/driver/validate?token=${encodeURIComponent(token)}`),
+  validateInvite: (token: string) =>
+    api.get<InviteValidation>(`/invites/driver/validate?token=${encodeURIComponent(token)}`),
 
   signupWithInvite: (payload: DriverSignupPayload) => api.post("/invites/driver/signup", payload),
 };

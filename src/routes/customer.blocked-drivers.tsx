@@ -5,7 +5,8 @@ import { ApiError } from "@/integrations/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { customerService, type BlockedDriver } from "@/services/customer.service";
+import { customerService } from "@/services/customer.service";
+import type { BlockedDriver } from "@/types/customer";
 
 export const Route = createFileRoute("/customer/blocked-drivers")({
   component: BlockedDriversPage,
