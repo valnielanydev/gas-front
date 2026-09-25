@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
-import { CustomerBottomNav } from "@/components/CustomerBottomNav";
+import { CustomerBottomNav } from "@/components/layout/CustomerBottomNav";
 
 export const Route = createFileRoute("/customer")({
   component: CustomerLayout,

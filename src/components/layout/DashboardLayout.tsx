@@ -3,9 +3,10 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { Flame, LogOut, Loader2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth, type AppRole } from "@/auth/AuthProvider";
-import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/auth/AuthProvider";
+import type { AppRole } from "@/types/auth";
+import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 interface NavItem {
   to: string;

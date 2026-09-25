@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { LayoutDashboard, Building2, Users, ShoppingCart } from "lucide-react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
 export const Route = createFileRoute("/master")({
   component: MasterLayout,

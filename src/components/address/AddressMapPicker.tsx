@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as LMap, Marker as LMarker, LeafletMouseEvent } from "leaflet";
-import { NOMINATIM_HEADERS } from "@/lib/constants";
 import { Loader2, MapPin, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { geoService } from "@/services/geo.service";
+import { onlyDigits } from "@/lib/utils";
 
 export type AddressValue = {
   postalCode: string;
@@ -73,17 +74,7 @@ export function AddressMapPicker({
 
   const reverseGeocode = async (lat: number, lon: number) => {
     try {
-      const params = new URLSearchParams({
-        format: "json",
-        lat: String(lat),
-        lon: String(lon),
-        addressdetails: "1",
-      });
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
-        headers: NOMINATIM_HEADERS,
-      });
-      const data = (await res.json()) as { address?: Record<string, string> };
-      const a = data.address ?? {};
+      const { address: a } = await geoService.reverseGeocode(lat, lon);
       const displayAddress = [
         a.road || a.pedestrian || a.footway,
         a.suburb || a.neighbourhood,
@@ -169,23 +160,22 @@ export function AddressMapPicker({
   }, [value.latitude, value.longitude, mapReady]);
 
   const handleCepLookup = async (raw: string) => {
-    const cep = raw.replace(/\D/g, "");
+    const cep = onlyDigits(raw);
     if (cep.length !== 8) return;
     setCepLoading(true);
     try {
-      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-      const data = await res.json();
-      if (data?.erro) {
+      const data = await geoService.lookupCep(cep);
+      if (!data) {
         toast.error("CEP não encontrado");
         return;
       }
       const next: AddressValue = {
         ...value,
         postalCode: cep,
-        street: data.logradouro || value.street,
-        neighborhood: data.bairro || value.neighborhood,
-        city: data.localidade || value.city,
-        state: data.uf || value.state,
+        street: data.street || value.street,
+        neighborhood: data.neighborhood || value.neighborhood,
+        city: data.city || value.city,
+        state: data.state || value.state,
       };
       onChange(next);
       await geocode(next);
@@ -201,20 +191,12 @@ export function AddressMapPicker({
     if (!q) return;
     setGeocoding(true);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(q)}`,
-        { headers: { Accept: "application/json" } },
-      );
-      const arr = (await res.json()) as Array<{ lat: string; lon: string }>;
-      if (!arr.length) {
+      const [match] = await geoService.searchAddress(q);
+      if (!match) {
         toast.error("Endereço não localizado. Ajuste o marcador no mapa.");
         return;
       }
-      onChange({
-        ...v,
-        latitude: parseFloat(arr[0].lat),
-        longitude: parseFloat(arr[0].lon),
-      });
+      onChange({ ...v, latitude: match.lat, longitude: match.lon });
     } catch {
       toast.error("Falha ao geocodificar");
     } finally {

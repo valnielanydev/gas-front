@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, MapPin, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { geoService } from "@/services/geo.service";
 
 export type AddressSuggestion = {
   display_name: string;
@@ -69,34 +70,9 @@ export function AddressAutocomplete({
     setLoading(true);
     debounceRef.current = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({
-          format: "json",
-          addressdetails: "1",
-          limit: "6",
-          countrycodes: "br",
-          q,
-        });
-        if (near) {
-          // ~0.5deg viewbox around the user (~55km) — bias only, not strict
-          const [lat, lng] = near;
-          const d = 0.5;
-          params.set("viewbox", `${lng - d},${lat + d},${lng + d},${lat - d}`);
-          params.set("bounded", "0");
-        }
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-          headers: { Accept: "application/json", "User-Agent": "VaptGas/1.0" },
-        });
-        const arr = (await res.json()) as Array<{
-          display_name: string;
-          lat: string;
-          lon: string;
-        }>;
+        const results = await geoService.searchAddress(q, { limit: 6, near });
         setSuggestions(
-          arr.map((a) => ({
-            display_name: a.display_name,
-            lat: parseFloat(a.lat),
-            lon: parseFloat(a.lon),
-          })),
+          results.map((r) => ({ display_name: r.displayName, lat: r.lat, lon: r.lon })),
         );
         setHighlight(0);
         setOpen(true);

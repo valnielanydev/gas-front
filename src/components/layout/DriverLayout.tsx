@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { DriverBottomNav } from "@/components/DriverBottomNav";
-import { DriverNavigation } from "@/components/DriverNavigation";
+import { DriverBottomNav } from "@/components/layout/DriverBottomNav";
+import { DriverNavigation } from "@/components/layout/DriverNavigation";
 import { cn } from "@/lib/utils";
 
 interface DriverLayoutProps {
