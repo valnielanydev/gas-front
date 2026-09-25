@@ -1,4 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { setUnauthorizedHandler } from "@/integrations/api/client";
 import { authService } from "@/services/auth.service";
 import type { AppRole, SessionData, UserProfile } from "@/types/auth";
 
@@ -17,16 +20,41 @@ export interface AuthState {
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [resellerId, setResellerId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Read synchronously by the 401 handler, which runs outside React renders
+  const userRef = useRef<UserProfile | null>(null);
 
   const applySession = (data: SessionData) => {
+    userRef.current = data.user;
     setUser(data.user);
     setRoles(data.roles);
     setResellerId(data.resellerId ?? null);
   };
+
+  /** Forgets the user and every cached query, so the next user never sees their data. */
+  const clearSession = () => {
+    userRef.current = null;
+    setUser(null);
+    setRoles([]);
+    setResellerId(null);
+    queryClient.clear();
+  };
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      // Only a session that existed can expire; also dedupes parallel 401s
+      if (!userRef.current) return;
+      clearSession();
+      toast.info("Sua sessão expirou. Entre novamente.");
+    });
+    return () => setUnauthorizedHandler(null);
+    // clearSession only touches refs, stable setters and the stable queryClient
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     authService
@@ -41,14 +69,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const body = isCpf ? { cpf: identifier, password } : { identifier, password };
     await authService.login(body);
     const data = await authService.me();
+    queryClient.clear();
     applySession(data);
   };
 
   const signOut = async () => {
     await authService.logout().catch(() => {});
-    setUser(null);
-    setRoles([]);
-    setResellerId(null);
+    clearSession();
   };
 
   const refresh = async () => {
