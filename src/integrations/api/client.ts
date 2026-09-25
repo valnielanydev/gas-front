@@ -20,6 +20,11 @@ export class ApiError extends Error {
   }
 }
 
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function request<T>(
   method: HttpMethod,
   path: string,
@@ -28,9 +33,15 @@ async function request<T>(
   const { body, signal } = options;
   const url = `${getApiBase()}${path.startsWith("/") ? path : `/${path}`}`;
 
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (method !== "GET") {
+    const csrf = getCsrfToken();
+    if (csrf) headers["x-csrf-token"] = csrf;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
     credentials: "include",
     signal: signal ?? AbortSignal.timeout(10_000),
