@@ -10,7 +10,8 @@ export function initSentry() {
     environment: import.meta.env.MODE,
     integrations: [
       Sentry.browserTracingIntegration(),
-      Sentry.replayIntegration({ maskAllText: false, blockAllMedia: false }),
+      // Screens show CPF, phone numbers and addresses: keep replays fully masked (LGPD)
+      Sentry.replayIntegration({ maskAllText: true, maskAllInputs: true, blockAllMedia: true }),
     ],
     // Low sample rate in production; full capture in dev for testing
     tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
