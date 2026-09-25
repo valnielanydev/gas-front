@@ -2,7 +2,8 @@ import { api } from "@/integrations/api/client";
 import type { LoginPayload, RegisterPayload, SessionData } from "@/types/auth";
 
 export const authService = {
-  login: (payload: LoginPayload) => api.post<unknown>("/auth/login", payload),
+  login: (payload: LoginPayload) =>
+    api.post<unknown>("/auth/login", payload, { expectsAuthFailure: true }),
 
   logout: () => api.post("/auth/logout"),
 
@@ -13,7 +14,11 @@ export const authService = {
   register: (payload: RegisterPayload) => api.post("/auth/register", payload),
 
   changePassword: (currentPassword: string, newPassword: string) =>
-    api.post("/auth/change-password", { currentPassword, newPassword }),
+    api.post(
+      "/auth/change-password",
+      { currentPassword, newPassword },
+      { expectsAuthFailure: true },
+    ),
 
   resetPassword: (token: string, password: string) =>
     api.post("/auth/reset-password", { token, password }),

@@ -7,6 +7,18 @@ type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 interface RequestOptions {
   body?: unknown;
   signal?: AbortSignal;
+  /**
+   * The endpoint answers 401 for bad credentials (login, current password check), not
+   * for an expired session, so the global unauthorized handler must not run.
+   */
+  expectsAuthFailure?: boolean;
+}
+
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Registers what to do when any request fails with 401 (expired or revoked session). */
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
 }
 
 export class ApiError extends Error {
@@ -30,7 +42,7 @@ async function request<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { body, signal } = options;
+  const { body, signal, expectsAuthFailure } = options;
   const url = `${getApiBase()}${path.startsWith("/") ? path : `/${path}`}`;
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -48,6 +60,7 @@ async function request<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401 && !expectsAuthFailure) unauthorizedHandler?.();
     let errorBody: unknown;
     try {
       errorBody = await res.json();
