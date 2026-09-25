@@ -11,6 +11,8 @@ import { useAuth } from "@/auth/AuthProvider";
 import { ApiError } from "@/integrations/api/client";
 import { customerService } from "@/services/customer.service";
 import { formatPhone } from "@/lib/phone";
+import { onlyDigits } from "@/lib/utils";
+import { optionalPhoneSchema } from "@/lib/validation";
 
 export const Route = createFileRoute("/customer/profile/dados-pessoais")({
   component: PersonalDataPage,
@@ -20,11 +22,7 @@ const profileSchema = z.object({
   fullName: z
     .string()
     .refine((v) => !v.trim() || v.trim().length >= 2, "Nome deve ter ao menos 2 caracteres"),
-  phone: z.string().refine((v) => {
-    if (!v.trim()) return true;
-    const d = v.replace(/\D/g, "");
-    return d.length >= 10 && d.length <= 11;
-  }, "Telefone inválido — informe DDD + número"),
+  phone: optionalPhoneSchema,
 });
 
 type ProfileErrors = Partial<Record<keyof z.infer<typeof profileSchema>, string>>;
@@ -54,7 +52,7 @@ function PersonalDataPage() {
     try {
       await customerService.updateProfile({
         name: fullName.trim() || null,
-        phone: phone.replace(/\D/g, "") || null,
+        phone: onlyDigits(phone) || null,
       });
       await refresh();
       toast.success("Alterações salvas");

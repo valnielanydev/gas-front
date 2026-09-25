@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
 import { authService } from "@/services/auth.service";
 import { formatCpf, isValidCpf } from "@/lib/cpf";
+import { onlyDigits } from "@/lib/utils";
 import { FlameMark } from "@/components/login/FlameMark";
 import { ClientStep } from "@/components/login/ClientStep";
 import { SignupStep } from "@/components/login/SignupStep";
@@ -49,14 +50,15 @@ function LoginPage() {
     e.preventDefault();
     if (!isValidCpf(cpf) || !password) return;
     setLoading(true);
+    const cpfDigits = onlyDigits(cpf);
     try {
-      const res = await authService.checkCpf(cpf.replace(/\D/g, ""));
+      const res = await authService.checkCpf(cpfDigits);
       if (!res.exists) {
         setStep("signup");
         toast.info("CPF não cadastrado. Complete o cadastro para continuar.");
         return;
       }
-      await signIn(cpf.replace(/\D/g, ""), password);
+      await signIn(cpfDigits, password);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao entrar");
     } finally {
@@ -67,15 +69,16 @@ function LoginPage() {
   const onSubmitSignup = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const cpfDigits = onlyDigits(cpf);
     try {
       await authService.register({
-        cpf: cpf.replace(/\D/g, ""),
+        cpf: cpfDigits,
         name,
         email,
-        phone: phone.replace(/\D/g, "") || undefined,
+        phone: onlyDigits(phone) || undefined,
         password,
       });
-      await signIn(cpf.replace(/\D/g, ""), password);
+      await signIn(cpfDigits, password);
       toast.success("Conta criada! Bem-vindo ao VaptGás.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao criar conta");

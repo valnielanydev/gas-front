@@ -14,15 +14,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { driverService } from "@/services/driver.service";
+import type { InviteReseller } from "@/types/driver";
 import { z } from "zod";
 import { isValidCpf } from "@/lib/cpf";
+import { phoneSchema } from "@/lib/validation";
 
 const signupSchema = z.object({
   fullName: z.string().min(3, "Nome deve ter ao menos 3 caracteres"),
-  phone: z.string().refine((v) => {
-    const d = v.replace(/\D/g, "");
-    return d.length >= 10 && d.length <= 11;
-  }, "Telefone inválido — informe DDD + número"),
+  phone: phoneSchema,
   document: z.string().refine(isValidCpf, "CPF inválido"),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
   vehiclePlate: z
@@ -41,14 +40,12 @@ export const Route = createFileRoute("/driver/signup")({
   component: DriverSignupPage,
 });
 
-type Reseller = { id: string; name: string; city: string | null; state: string | null };
-
 function DriverSignupPage() {
   const { token } = Route.useSearch();
   const navigate = useNavigate();
 
   const [phase, setPhase] = useState<"loading" | "invalid" | "form" | "done">("loading");
-  const [reseller, setReseller] = useState<Reseller | null>(null);
+  const [reseller, setReseller] = useState<InviteReseller | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<SignupErrors>({});
 
@@ -82,7 +79,7 @@ function DriverSignupPage() {
     }
     let cancelled = false;
     driverService
-      .validateInvite<{ valid: boolean; reseller: Reseller }>(token)
+      .validateInvite(token)
       .then((res) => {
         if (cancelled) return;
         if (!res.valid) {

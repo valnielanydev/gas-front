@@ -5,21 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { DriverLayout } from "@/components/DriverLayout";
+import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { DriverLayout } from "@/components/layout/DriverLayout";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError } from "@/integrations/api/client";
 import { driverService } from "@/services/driver.service";
 import { toast } from "sonner";
 import { z } from "zod";
+import { optionalPhoneSchema } from "@/lib/validation";
 
 const profileSchema = z.object({
-  phone: z.string().refine((v) => {
-    if (!v.trim()) return true;
-    const d = v.replace(/\D/g, "");
-    return d.length >= 10 && d.length <= 11;
-  }, "Telefone inválido — informe DDD + número"),
+  phone: optionalPhoneSchema,
   avatarUrl: z.string().refine((v) => {
     if (!v.trim()) return true;
     try {
@@ -34,16 +31,6 @@ const profileSchema = z.object({
 type ProfileErrors = Partial<Record<keyof z.infer<typeof profileSchema>, string>>;
 
 export const Route = createFileRoute("/driver/profile")({ component: DriverProfilePage });
-
-interface DriverProfile {
-  fullName: string;
-  phone: string;
-  avatarUrl: string;
-  notes: string;
-  additionalInfo: string;
-  approvalStatus: string;
-  resellerName: string;
-}
 
 function DriverProfilePage() {
   const { user, signOut } = useAuth();
@@ -62,7 +49,7 @@ function DriverProfilePage() {
   useEffect(() => {
     if (!user) return;
     driverService
-      .myProfile<DriverProfile>()
+      .myProfile()
       .then((data) => {
         setFullName(data.fullName ?? "");
         setPhone(data.phone ?? "");

@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { onlyDigits } from "@/lib/utils";
 
 interface Props {
   open: boolean;
@@ -40,7 +41,7 @@ export function DeliveryCompleteDialog({
           <InputOTP
             maxLength={4}
             value={code}
-            onChange={(v) => onCodeChange(v.replace(/\D/g, ""))}
+            onChange={(v) => onCodeChange(onlyDigits(v))}
             autoFocus
           >
             <InputOTPGroup>

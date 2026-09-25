@@ -1,5 +1,7 @@
+import { onlyDigits } from "@/lib/utils";
+
 export function formatCpf(v: string): string {
-  const d = v.replace(/\D/g, "").slice(0, 11);
+  const d = onlyDigits(v).slice(0, 11);
   if (d.length <= 3) return d;
   if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
   if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
@@ -7,7 +9,7 @@ export function formatCpf(v: string): string {
 }
 
 export function isValidCpf(value: string): boolean {
-  const c = value.replace(/\D/g, "");
+  const c = onlyDigits(value);
   if (c.length !== 11) return false;
   if (/^(\d)\1{10}$/.test(c)) return false;
   let sum = 0;
