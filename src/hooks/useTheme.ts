@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
+import { THEME_STORAGE_KEY as STORAGE_KEY } from "@/lib/theme";
 
 export type Theme = "light" | "dark";
 export type ThemePreference = Theme | "system";
-const STORAGE_KEY = "vaptgas:theme";
 
 function resolveSystemTheme(): Theme {
   if (typeof window === "undefined" || !window.matchMedia) return "light";

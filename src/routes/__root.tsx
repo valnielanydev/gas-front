@@ -6,12 +6,14 @@ import {
   Scripts,
   useLocation,
 } from "@tanstack/react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { initSentry, Sentry } from "@/lib/sentry";
 import { reportWebVitals } from "@/lib/vitals";
+import { themeInitScript } from "@/lib/theme";
+import { createQueryClient } from "@/queries/client";
 
 initSentry();
 
@@ -89,8 +91,10 @@ export const Route = createRootRoute({
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
+    // The theme script sets the `dark` class before hydration
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <HeadContent />
       </head>
       <body>
@@ -102,17 +106,8 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  const [queryClient] = useState(() => new QueryClient());
-  // Apply persisted theme as early as possible on the client
+  const [queryClient] = useState(createQueryClient);
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("vaptgas:theme");
-      const isDark = stored === "dark";
-      document.documentElement.classList.toggle("dark", isDark);
-      document.documentElement.style.colorScheme = isDark ? "dark" : "light";
-    } catch {
-      /* ignore */
-    }
     reportWebVitals();
   }, []);
   return (
