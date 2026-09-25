@@ -9,7 +9,8 @@ import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { DriverLayout } from "@/components/DriverLayout";
 import { useAuth } from "@/auth/AuthProvider";
-import { api, ApiError } from "@/integrations/api/client";
+import { ApiError } from "@/integrations/api/client";
+import { driverService } from "@/services/driver.service";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -60,8 +61,8 @@ function DriverProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    api
-      .get<DriverProfile>("/drivers/me/profile")
+    driverService
+      .myProfile<DriverProfile>()
       .then((data) => {
         setFullName(data.fullName ?? "");
         setPhone(data.phone ?? "");
@@ -91,7 +92,7 @@ function DriverProfilePage() {
     setErrors({});
     setSaving(true);
     try {
-      await api.patch("/drivers/me/profile", {
+      await driverService.updateMyProfile({
         phone: phone.trim() || null,
         avatarUrl: avatarUrl.trim() || null,
         notes: notes.trim() || null,

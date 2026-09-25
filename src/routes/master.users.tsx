@@ -29,7 +29,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { api } from "@/integrations/api/client";
+import { adminService } from "@/services/admin.service";
 import { useAuth } from "@/auth/AuthProvider";
 
 export const Route = createFileRoute("/master/users")({
@@ -59,16 +59,16 @@ function UsersPage() {
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["all-users"],
-    queryFn: () => api.get<UserRow[]>("/admin/users"),
+    queryFn: () => adminService.users<UserRow>(),
   });
 
   const { data: resellers } = useQuery({
     queryKey: ["resellers-list"],
-    queryFn: () => api.get<Reseller[]>("/admin/resellers?active=true"),
+    queryFn: () => adminService.resellers<Reseller>({ active: true }),
   });
 
   const promoteMaster = useMutation({
-    mutationFn: (userId: string) => api.post(`/admin/users/${userId}/roles`, { role: "master" }),
+    mutationFn: (userId: string) => adminService.promoteToMaster(userId),
     onSuccess: () => {
       toast.success("Usuário promovido a Master");
       qc.invalidateQueries({ queryKey: ["all-users"] });
@@ -77,7 +77,7 @@ function UsersPage() {
   });
 
   const demoteMaster = useMutation({
-    mutationFn: (userId: string) => api.delete(`/admin/users/${userId}/roles/master`),
+    mutationFn: (userId: string) => adminService.demoteFromMaster(userId),
     onSuccess: () => {
       toast.success("Permissão Master removida");
       qc.invalidateQueries({ queryKey: ["all-users"] });
@@ -87,10 +87,7 @@ function UsersPage() {
 
   const linkToReseller = useMutation({
     mutationFn: (userId: string) =>
-      api.post(`/admin/users/${userId}/reseller-link`, {
-        resellerId: linkResellerId,
-        role: linkRole,
-      }),
+      adminService.linkUserToReseller(userId, linkResellerId, linkRole),
     onSuccess: () => {
       toast.success("Vínculo criado");
       qc.invalidateQueries({ queryKey: ["all-users"] });

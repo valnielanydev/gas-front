@@ -13,7 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getApiBase } from "@/lib/constants";
+import { ApiError } from "@/integrations/api/client";
+import { authService } from "@/services/auth.service";
 
 interface Props {
   trigger?: ReactNode;
@@ -39,26 +40,16 @@ export function ChangePasswordDialog({ trigger }: Props) {
 
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBase()}/auth/change-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ currentPassword: current, newPassword: next }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        if (res.status === 401) {
-          toast.error("Senha atual incorreta");
-        } else {
-          toast.error(body.message ?? `Erro ${res.status}`);
-        }
-        return;
-      }
+      await authService.changePassword(current, next);
       toast.success("Senha alterada com sucesso!");
       reset();
       setOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao alterar senha");
+      if (err instanceof ApiError && err.status === 401) {
+        toast.error("Senha atual incorreta");
+      } else {
+        toast.error(err instanceof ApiError ? err.message : "Erro ao alterar senha");
+      }
     } finally {
       setLoading(false);
     }
@@ -79,7 +70,7 @@ export function ChangePasswordDialog({ trigger }: Props) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="z-[700]">
+      <DialogContent className="z-700">
         <DialogHeader>
           <DialogTitle>Alterar senha</DialogTitle>
           <DialogDescription>Confirme sua senha atual e defina uma nova.</DialogDescription>

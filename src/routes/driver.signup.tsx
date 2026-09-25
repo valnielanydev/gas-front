@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { api } from "@/integrations/api/client";
+import { driverService } from "@/services/driver.service";
 import { z } from "zod";
 import { isValidCpf } from "@/lib/cpf";
 
@@ -81,10 +81,8 @@ function DriverSignupPage() {
       return;
     }
     let cancelled = false;
-    api
-      .get<{ valid: boolean; reseller: Reseller }>(
-        `/invites/driver/validate?token=${encodeURIComponent(token)}`,
-      )
+    driverService
+      .validateInvite<{ valid: boolean; reseller: Reseller }>(token)
       .then((res) => {
         if (cancelled) return;
         if (!res.valid) {
@@ -128,7 +126,7 @@ function DriverSignupPage() {
     setErrors({});
     setSubmitting(true);
     try {
-      await api.post("/invites/driver/signup", {
+      await driverService.signupWithInvite({
         token,
         password,
         fullName,

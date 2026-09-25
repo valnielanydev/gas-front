@@ -25,20 +25,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { api } from "@/integrations/api/client";
+import { resellerService, type Product } from "@/services/reseller.service";
 import { useAuth } from "@/auth/AuthProvider";
 
 export const Route = createFileRoute("/app/products")({
   component: ProductsPage,
 });
-
-interface Product {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  is_available: boolean;
-}
 
 function ProductsPage() {
   const { resellerId } = useAuth();
@@ -50,7 +42,7 @@ function ProductsPage() {
   const { data: products, isLoading } = useQuery({
     queryKey: ["products", resellerId],
     enabled: !!resellerId,
-    queryFn: () => api.get<Product[]>(`/resellers/${resellerId}/products`),
+    queryFn: () => resellerService.products(resellerId!),
   });
 
   const upsertMutation = useMutation({
@@ -62,9 +54,9 @@ function ProductsPage() {
         is_available: form.is_available,
       };
       if (editing) {
-        return api.patch(`/products/${editing.id}`, payload);
+        return resellerService.updateProduct(editing.id, payload);
       }
-      return api.post(`/resellers/${resellerId}/products`, payload);
+      return resellerService.createProduct(resellerId!, payload);
     },
     onSuccess: () => {
       toast.success(editing ? "Produto atualizado" : "Produto criado");
@@ -76,7 +68,7 @@ function ProductsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/products/${id}`),
+    mutationFn: (id: string) => resellerService.deleteProduct(id),
     onSuccess: () => {
       toast.success("Produto removido");
       qc.invalidateQueries({ queryKey: ["products"] });

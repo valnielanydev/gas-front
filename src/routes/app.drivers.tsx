@@ -49,7 +49,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
-import { api } from "@/integrations/api/client";
+import { resellerService } from "@/services/reseller.service";
 import { useAuth } from "@/auth/AuthProvider";
 
 export const Route = createFileRoute("/app/drivers")({ component: DriversPage });
@@ -86,7 +86,7 @@ function DriversPage() {
   const { data: drivers, isLoading } = useQuery({
     queryKey: ["drivers", resellerId],
     enabled: !!resellerId,
-    queryFn: () => api.get<Driver[]>(`/resellers/${resellerId}/drivers`),
+    queryFn: () => resellerService.drivers<Driver>(resellerId!),
   });
 
   const counts = useMemo(() => {
@@ -104,7 +104,7 @@ function DriversPage() {
 
   const setStatus = useMutation({
     mutationFn: ({ d, status }: { d: Driver; status: ApprovalStatus }) =>
-      api.patch(`/drivers/${d.id}/status`, { approvalStatus: status }),
+      resellerService.updateDriverStatus(d.id, status),
     onSuccess: (_data, variables) => {
       if (variables.status !== "inactive") toast.success("Status atualizado");
       qc.invalidateQueries({ queryKey: ["drivers"] });
@@ -334,7 +334,7 @@ function InviteCard() {
   const generate = async () => {
     setLoading(true);
     try {
-      const res = await api.post<{ token: string; expires_at: string }>("/invites/driver");
+      const res = await resellerService.generateDriverInvite();
       const url = `${window.location.origin}/driver/signup?token=${res.token}`;
       setInvite({ url, expiresAt: res.expires_at });
       toast.success("Convite gerado! Válido por 24h.");
@@ -439,7 +439,7 @@ function DriverEditDialog({
     if (!editing) return;
     setSubmitting(true);
     try {
-      await api.patch(`/drivers/${editing.id}`, {
+      await resellerService.updateDriver(editing.id, {
         fullName,
         phone,
         document: document || null,
@@ -542,7 +542,7 @@ function RemoveDriverDialog({
     if (!driver) return;
     setSubmitting(true);
     try {
-      await api.delete(`/drivers/${driver.id}?deleteAccount=${deleteAccount}`);
+      await resellerService.removeDriver(driver.id, deleteAccount);
       toast.success("Motorista removido");
       onRemoved();
       onClose();
@@ -601,10 +601,10 @@ function DriverHistoryDialog({ driver, onClose }: { driver: Driver | null; onClo
     queryKey: ["driver-history", driver?.id],
     enabled: !!driver,
     queryFn: () =>
-      api.get<{
+      resellerService.driverHistory<{
         orders: Array<{ id: string; status: string; total_amount: number; created_at: string }>;
         ratings: Array<{ rating: number; comment: string | null }>;
-      }>(`/drivers/${driver!.id}/history`),
+      }>(driver!.id),
   });
 
   return (

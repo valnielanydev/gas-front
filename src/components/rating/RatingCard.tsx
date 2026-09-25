@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/integrations/api/client";
+import { orderService } from "@/services/order.service";
 import { toast } from "sonner";
 
 export type DeliveryRating = {
@@ -44,10 +44,9 @@ export function RatingCard({
   const save = async () => {
     setSaving(true);
     try {
-      const payload = await api.post<DeliveryRating & { evaluator_role?: "customer" | "driver" }>(
-        `/orders/${orderId}/rating`,
-        { rating: value, comment, delivery_time_rating: timeValue },
-      );
+      const payload = await orderService.rate<
+        DeliveryRating & { evaluator_role?: "customer" | "driver" }
+      >(orderId, { rating: value, comment, delivery_time_rating: timeValue });
       if (payload.evaluator_role && payload.evaluator_role !== expectedEvaluatorRole) {
         toast.error("Avaliação recebida de um perfil diferente do esperado. Tente novamente.");
         return;

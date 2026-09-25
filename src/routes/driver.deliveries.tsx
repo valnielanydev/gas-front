@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { api } from "@/integrations/api/client";
+import { driverService } from "@/services/driver.service";
 import { useAuth } from "@/auth/AuthProvider";
 import { DriverLayout } from "@/components/DriverLayout";
 import { getOrderStatusLabel } from "@/i18n/ptBR";
@@ -34,8 +34,9 @@ function DriverDeliveriesPage() {
   const [hasMore, setHasMore] = useState(true);
 
   const fetchOrders = async (nextOffset: number, append: boolean) => {
-    const data = await api.get<DeliveriesResponse>(
-      `/drivers/me/deliveries?limit=${PAGE_SIZE}&offset=${nextOffset}`,
+    const data: DeliveriesResponse = await driverService.deliveries<DriverDeliveryRow>(
+      PAGE_SIZE,
+      nextOffset,
     );
     const incoming = data.orders ?? [];
     setOrders((prev) => {

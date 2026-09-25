@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { api } from "@/integrations/api/client";
+import { adminService, type CreateResellerResponse } from "@/services/admin.service";
 import { AddressMapPicker, emptyAddress, type AddressValue } from "@/components/AddressMapPicker";
 
 export const Route = createFileRoute("/master/resellers")({
@@ -48,12 +48,6 @@ interface Reseller {
   neighborhood?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-}
-
-interface CreateResellerResponse {
-  loginEmail: string;
-  password: string;
-  inviteCode: string;
 }
 
 function ResellersPage() {
@@ -85,7 +79,7 @@ function ResellersPage() {
 
   const { data: resellers, isLoading } = useQuery({
     queryKey: ["resellers"],
-    queryFn: () => api.get<Reseller[]>("/admin/resellers"),
+    queryFn: () => adminService.resellers<Reseller>(),
   });
 
   const upsertMutation = useMutation({
@@ -108,12 +102,12 @@ function ResellersPage() {
         adminFullName: form.adminFullName || form.name,
       };
       if (editing) {
-        return api.patch<null>(`/admin/resellers/${editing.id}`, payload);
+        return adminService.updateReseller(editing.id, payload);
       }
       if (!address.latitude || !address.longitude) {
         throw new Error("Defina a localização no mapa antes de salvar.");
       }
-      return api.post<CreateResellerResponse>("/admin/resellers", payload);
+      return adminService.createReseller(payload);
     },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["resellers"] });
@@ -133,7 +127,7 @@ function ResellersPage() {
   });
 
   const toggleActive = useMutation({
-    mutationFn: (r: Reseller) => api.patch(`/admin/resellers/${r.id}`, { is_active: !r.is_active }),
+    mutationFn: (r: Reseller) => adminService.updateReseller(r.id, { is_active: !r.is_active }),
     onSuccess: () => {
       toast.success("Status atualizado");
       qc.invalidateQueries({ queryKey: ["resellers"] });
@@ -141,7 +135,7 @@ function ResellersPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/admin/resellers/${id}`),
+    mutationFn: (id: string) => adminService.deleteReseller(id),
     onSuccess: () => {
       toast.success("Revendedora removida");
       qc.invalidateQueries({ queryKey: ["resellers"] });

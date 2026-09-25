@@ -17,7 +17,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/integrations/api/client";
+import { orderService } from "@/services/order.service";
+import { customerService } from "@/services/customer.service";
 import { useAuth } from "@/auth/AuthProvider";
 import { toast } from "sonner";
 import { formatEta, haversineKm } from "@/lib/distance";
@@ -60,7 +61,7 @@ function OrderTracking() {
     isError,
   } = useQuery({
     queryKey: ["order-tracking", orderId],
-    queryFn: () => api.get<OrderTrackingResponse>(`/orders/${orderId}/tracking`),
+    queryFn: () => orderService.tracking<OrderTrackingResponse>(orderId),
     enabled: !!user,
     refetchInterval: 10_000,
     retry: false,
@@ -93,7 +94,7 @@ function OrderTracking() {
     setRejecting(true);
     setRejectDialogOpen(false);
     try {
-      await api.post(`/orders/${order.id}/reject-driver`, { reason: rejectReason.trim() });
+      await orderService.rejectDriver(order.id, rejectReason.trim());
       toast.success("Motorista rejeitado. Buscando outro entregador...");
       setRejectReason("");
       await queryClient.invalidateQueries({ queryKey: ["order-tracking", orderId] });
@@ -106,7 +107,7 @@ function OrderTracking() {
 
   const unblockDriver = async (driverId: string) => {
     try {
-      await api.delete(`/customers/me/blocked-drivers/${driverId}`);
+      await customerService.unblockDriver(driverId);
       toast.success("Motorista desbloqueado com sucesso.");
       await queryClient.invalidateQueries({ queryKey: ["order-tracking", orderId] });
     } catch (err) {
@@ -119,7 +120,7 @@ function OrderTracking() {
     setCancelling(true);
     setCancelDialogOpen(false);
     try {
-      await api.post(`/orders/${order.id}/cancel`);
+      await orderService.cancel(order.id);
       toast.success("Pedido cancelado com sucesso.");
       await queryClient.invalidateQueries({ queryKey: ["order-tracking", orderId] });
     } catch (err) {
@@ -210,14 +211,13 @@ function OrderTracking() {
     if (!order?.id) return;
     setRatingSaving(true);
     try {
-      const payload = await api.post<DeliveryRating & { evaluator_role?: "customer" | "driver" }>(
-        `/orders/${order.id}/rating`,
-        {
-          rating: ratingValue,
-          comment: ratingComment,
-          delivery_time_rating: deliveryTimeRatingValue,
-        },
-      );
+      const payload = await orderService.rate<
+        DeliveryRating & { evaluator_role?: "customer" | "driver" }
+      >(order.id, {
+        rating: ratingValue,
+        comment: ratingComment,
+        delivery_time_rating: deliveryTimeRatingValue,
+      });
       if (payload.evaluator_role && payload.evaluator_role !== "customer") {
         toast.error("Avaliação recebida de um perfil diferente do esperado. Tente novamente.");
         return;

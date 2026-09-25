@@ -1,16 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Star } from "lucide-react";
-import { api, ApiError } from "@/integrations/api/client";
+import { ApiError } from "@/integrations/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-
-type BlockedDriver = {
-  driver_id: string;
-  driver_name: string | null;
-  blocked_at: string;
-};
+import { customerService, type BlockedDriver } from "@/services/customer.service";
 
 export const Route = createFileRoute("/customer/blocked-drivers")({
   component: BlockedDriversPage,
@@ -23,7 +18,7 @@ function BlockedDriversPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await api.get<BlockedDriver[]>("/customers/me/blocked-drivers");
+      const data = await customerService.listBlockedDrivers();
       setRows(data ?? []);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erro ao carregar motoristas bloqueados");
@@ -34,7 +29,7 @@ function BlockedDriversPage() {
 
   const unblock = async (driverId: string) => {
     try {
-      await api.delete(`/customers/me/blocked-drivers/${driverId}`);
+      await customerService.unblockDriver(driverId);
       toast.success("Motorista desbloqueado.");
       await load();
     } catch (err) {

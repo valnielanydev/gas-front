@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { api } from "@/integrations/api/client";
+import { adminService } from "@/services/admin.service";
 import { fmtMoney } from "@/lib/constants";
 import { format } from "date-fns";
 import { getOrderStatusLabel } from "@/i18n/ptBR";
@@ -48,7 +48,7 @@ const statusLabels: Record<
 function OrdersPage() {
   const { data: orders, isLoading } = useQuery({
     queryKey: ["all-orders"],
-    queryFn: () => api.get<Order[]>("/admin/orders?limit=100"),
+    queryFn: () => adminService.orders<Order>(100),
   });
 
   return (

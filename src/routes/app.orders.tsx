@@ -18,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { api } from "@/integrations/api/client";
+import { resellerService } from "@/services/reseller.service";
+import { orderService } from "@/services/order.service";
 import { fmtMoney } from "@/lib/constants";
 import { useAuth } from "@/auth/AuthProvider";
 import { format } from "date-fns";
@@ -69,12 +70,12 @@ function ResellerOrdersPage() {
   const { data: orders, isLoading } = useQuery({
     queryKey: ["reseller-orders", resellerId],
     enabled: !!resellerId,
-    queryFn: () => api.get<Order[]>(`/resellers/${resellerId}/orders`),
+    queryFn: () => resellerService.orders<Order>(resellerId!),
   });
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.patch(`/orders/${id}/status`, { status }),
+      orderService.updateStatus(id, status),
     onSuccess: () => {
       toast.success("Status atualizado");
       qc.invalidateQueries({ queryKey: ["reseller-orders"] });

@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { api } from "@/integrations/api/client";
+import { customerService } from "@/services/customer.service";
+import { orderService } from "@/services/order.service";
 import { useAuth } from "@/auth/AuthProvider";
 import { fmtMoney } from "@/lib/constants";
 import { RatingCard, type DeliveryRating } from "@/components/rating/RatingCard";
@@ -85,9 +86,7 @@ function MyOrders() {
 
   const fetchOrders = async (nextOffset: number, append: boolean) => {
     if (!user) return;
-    const data = await api.get<OrdersResponse>(
-      `/customers/me/orders?limit=${PAGE_SIZE}&offset=${nextOffset}`,
-    );
+    const data: OrdersResponse = await customerService.listOrders<Row>(PAGE_SIZE, nextOffset);
     const incoming = data.orders ?? [];
     setRows((prev) => {
       if (!append || !prev) return incoming;
@@ -110,8 +109,8 @@ function MyOrders() {
     if (!rows?.length) return;
     const deliveredIds = rows.filter((o) => o.status === "delivered").map((o) => o.id);
     if (!deliveredIds.length) return;
-    api
-      .post<Record<string, DeliveryRating>>("/customers/me/ratings", { orderIds: deliveredIds })
+    customerService
+      .ratingsForOrders<DeliveryRating>(deliveredIds)
       .then((mapped) => setRatingsByOrder((prev) => ({ ...prev, ...mapped })))
       .catch(() => {});
   }, [rows]);
@@ -119,11 +118,8 @@ function MyOrders() {
   useEffect(() => {
     if (!rows?.length) return;
     const ids = rows.map((o) => o.id);
-    api
-      .post<Record<string, { rating: number | null; delivery_time_rating: number | null }>>(
-        "/customers/me/driver-metrics",
-        { orderIds: ids },
-      )
+    customerService
+      .driverMetricsForOrders(ids)
       .then((entries) => setDriverMetricsByOrder((prev) => ({ ...prev, ...entries })))
       .catch(() => {});
   }, [rows]);
@@ -136,7 +132,7 @@ function MyOrders() {
     setLoadingOrderDetails(true);
     setSelectedOrder(null);
     try {
-      const detail = await api.get<OrderDetailResponse>(`/orders/${order.id}/detail`);
+      const detail = await orderService.detail<OrderDetailResponse>(order.id);
       setSelectedOrder({
         order,
         productName: detail.productName ?? null,

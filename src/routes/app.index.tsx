@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Package, Truck, ShoppingCart, Star } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/integrations/api/client";
+import { resellerService } from "@/services/reseller.service";
 import { useAuth } from "@/auth/AuthProvider";
 
 export const Route = createFileRoute("/app/")({
@@ -22,7 +22,7 @@ function AppOverview() {
   const { data: stats } = useQuery({
     queryKey: ["reseller-stats", resellerId],
     enabled: !!resellerId,
-    queryFn: () => api.get<ResellerStats>(`/resellers/${resellerId}/stats`),
+    queryFn: () => resellerService.stats<ResellerStats>(resellerId!),
   });
 
   if (!resellerId) {

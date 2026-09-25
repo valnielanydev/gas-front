@@ -11,7 +11,6 @@ import { useAuth } from "@/auth/AuthProvider";
 import { estimateEtaMinutes, formatKm, haversineKm } from "@/lib/distance";
 import { DriverBottomNav } from "@/components/DriverBottomNav";
 import { DriverNavigation } from "@/components/DriverNavigation";
-import { api } from "@/integrations/api/client";
 import type {
   Coords,
   CustomerDetails,
@@ -24,6 +23,8 @@ import { ActiveOrderCard } from "@/components/driver/ActiveOrderCard";
 import { PendingOrdersSection } from "@/components/driver/PendingOrdersSection";
 import { DeliveryCompleteDialog } from "@/components/driver/DeliveryCompleteDialog";
 import { DeliveryRatingDrawer } from "@/components/driver/DeliveryRatingDrawer";
+import { driverService } from "@/services/driver.service";
+import { orderService } from "@/services/order.service";
 
 export const Route = createFileRoute("/driver/")({ component: DriverPage });
 
@@ -64,10 +65,10 @@ function DriverPage() {
     }
     const ids = orders.map((o) => o.id);
     try {
-      const rows = await api.post<Array<{ order_id: string; customer_name: string | null }>>(
-        "/drivers/me/customer-details",
-        { orderIds: ids },
-      );
+      const rows = await driverService.customerDetails<{
+        order_id: string;
+        customer_name: string | null;
+      }>(ids);
       const byOrder: Record<string, CustomerDetails> = {};
       rows.forEach((r) => {
         byOrder[r.order_id] = { customer_name: r.customer_name };
@@ -81,7 +82,7 @@ function DriverPage() {
   const loadDashboard = useCallback(async () => {
     setDashboardLoading(true);
     try {
-      const data = await api.get<DriverDashboardData>("/drivers/me/dashboard");
+      const data = await driverService.dashboard<DriverDashboardData>();
       setDashboard(data);
     } catch {
       setDashboard(null);
@@ -103,13 +104,9 @@ function DriverPage() {
   const fetchOrdersData = useCallback(async () => {
     const drv = driverRef.current;
     if (!drv) return null;
-    const activeOrder = await api
-      .get<OrderRow | null>("/drivers/me/active-order")
-      .catch(() => null);
+    const activeOrder = await driverService.activeOrder<OrderRow>().catch(() => null);
     if (!activeOrder && drv.approval_status === "active") {
-      const pending = await api
-        .get<OrderRow[]>("/drivers/me/pending-orders")
-        .catch(() => [] as OrderRow[]);
+      const pending = await driverService.pendingOrders<OrderRow>().catch(() => [] as OrderRow[]);
       return { active: activeOrder, pending };
     }
     return { active: activeOrder, pending: [] as OrderRow[] };
@@ -121,7 +118,7 @@ function DriverPage() {
     (async () => {
       setLoading(true);
       try {
-        const drv = await api.get<DriverRow>("/drivers/me");
+        const drv = await driverService.me<DriverRow>();
         if (cancelled) return;
         setDriver(drv);
         await loadDashboard();
@@ -183,7 +180,7 @@ function DriverPage() {
     setTogglingOnline(true);
     const newStatus = next ? "available" : "offline";
     try {
-      await api.patch("/drivers/me/status", { status: newStatus });
+      await driverService.updateStatus(newStatus);
       setDriver({ ...driver, status: newStatus });
       toast.success(next ? "Você está online" : "Você está offline");
     } catch (e) {
@@ -196,7 +193,7 @@ function DriverPage() {
   const acceptOrder = async (orderId: string) => {
     setAcceptingId(orderId);
     try {
-      const accepted = await api.post<OrderRow>(`/orders/${orderId}/accept`);
+      const accepted = await orderService.accept<OrderRow>(orderId);
       toast.success("Pedido aceito!");
       setActive(accepted);
       setAvailableOrders((prev) => prev.filter((o) => o.id !== orderId));
@@ -214,7 +211,7 @@ function DriverPage() {
     if (!active) return;
     setStarting(true);
     try {
-      const updated = await api.post<OrderRow>(`/orders/${active.id}/start-delivery`);
+      const updated = await driverService.startDelivery<OrderRow>(active.id);
       setActive(updated);
       toast.success("Entrega iniciada");
     } catch (e) {
@@ -232,7 +229,7 @@ function DriverPage() {
     }
     setCompleting(true);
     try {
-      await api.post(`/orders/${active.id}/complete`, { code });
+      await orderService.complete(active.id, code);
       toast.success("Pedido entregue!");
       setCompleteOpen(false);
       setCode("");
@@ -257,7 +254,7 @@ function DriverPage() {
     if (!active) return;
     setCancelling(true);
     try {
-      await api.post(`/orders/${active.id}/cancel-by-driver`);
+      await orderService.cancelByDriver(active.id);
       toast.success("Entrega cancelada");
       setActive(null);
       if (driver) {
@@ -277,7 +274,7 @@ function DriverPage() {
     if (!ratingOrderId) return;
     setRatingSaving(true);
     try {
-      await api.post(`/orders/${ratingOrderId}/rating`, {
+      await orderService.rate(ratingOrderId, {
         rating: ratingValue,
         comment: ratingComment,
         delivery_time_rating: null,
