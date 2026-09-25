@@ -32,6 +32,14 @@ import { Route as CustomerBlockedDriversRouteImport } from './routes/customer.bl
 import { Route as AppProductsRouteImport } from './routes/app.products'
 import { Route as AppOrdersRouteImport } from './routes/app.orders'
 import { Route as AppDriversRouteImport } from './routes/app.drivers'
+import { Route as CustomerProfileIndexRouteImport } from './routes/customer.profile.index'
+import { Route as CustomerProfileSegurancaRouteImport } from './routes/customer.profile.seguranca'
+import { Route as CustomerProfilePagamentoRouteImport } from './routes/customer.profile.pagamento'
+import { Route as CustomerProfileNotificacoesRouteImport } from './routes/customer.profile.notificacoes'
+import { Route as CustomerProfileEnderecosRouteImport } from './routes/customer.profile.enderecos'
+import { Route as CustomerProfileDadosPessoaisRouteImport } from './routes/customer.profile.dados-pessoais'
+import { Route as CustomerProfileAparenciaRouteImport } from './routes/customer.profile.aparencia'
+import { Route as CustomerProfileAjudaRouteImport } from './routes/customer.profile.ajuda'
 import { Route as CustomerOrderOrderIdRouteImport } from './routes/customer.order.$orderId'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -149,6 +157,52 @@ const AppDriversRoute = AppDriversRouteImport.update({
   path: '/drivers',
   getParentRoute: () => AppRoute,
 } as any)
+const CustomerProfileIndexRoute = CustomerProfileIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CustomerProfileRoute,
+} as any)
+const CustomerProfileSegurancaRoute =
+  CustomerProfileSegurancaRouteImport.update({
+    id: '/seguranca',
+    path: '/seguranca',
+    getParentRoute: () => CustomerProfileRoute,
+  } as any)
+const CustomerProfilePagamentoRoute =
+  CustomerProfilePagamentoRouteImport.update({
+    id: '/pagamento',
+    path: '/pagamento',
+    getParentRoute: () => CustomerProfileRoute,
+  } as any)
+const CustomerProfileNotificacoesRoute =
+  CustomerProfileNotificacoesRouteImport.update({
+    id: '/notificacoes',
+    path: '/notificacoes',
+    getParentRoute: () => CustomerProfileRoute,
+  } as any)
+const CustomerProfileEnderecosRoute =
+  CustomerProfileEnderecosRouteImport.update({
+    id: '/enderecos',
+    path: '/enderecos',
+    getParentRoute: () => CustomerProfileRoute,
+  } as any)
+const CustomerProfileDadosPessoaisRoute =
+  CustomerProfileDadosPessoaisRouteImport.update({
+    id: '/dados-pessoais',
+    path: '/dados-pessoais',
+    getParentRoute: () => CustomerProfileRoute,
+  } as any)
+const CustomerProfileAparenciaRoute =
+  CustomerProfileAparenciaRouteImport.update({
+    id: '/aparencia',
+    path: '/aparencia',
+    getParentRoute: () => CustomerProfileRoute,
+  } as any)
+const CustomerProfileAjudaRoute = CustomerProfileAjudaRouteImport.update({
+  id: '/ajuda',
+  path: '/ajuda',
+  getParentRoute: () => CustomerProfileRoute,
+} as any)
 const CustomerOrderOrderIdRoute = CustomerOrderOrderIdRouteImport.update({
   id: '/order/$orderId',
   path: '/order/$orderId',
@@ -168,7 +222,7 @@ export interface FileRoutesByFullPath {
   '/app/products': typeof AppProductsRoute
   '/customer/blocked-drivers': typeof CustomerBlockedDriversRoute
   '/customer/orders': typeof CustomerOrdersRoute
-  '/customer/profile': typeof CustomerProfileRoute
+  '/customer/profile': typeof CustomerProfileRouteWithChildren
   '/driver/deliveries': typeof DriverDeliveriesRoute
   '/driver/profile': typeof DriverProfileRoute
   '/driver/signup': typeof DriverSignupRoute
@@ -180,6 +234,14 @@ export interface FileRoutesByFullPath {
   '/driver/': typeof DriverIndexRoute
   '/master/': typeof MasterIndexRoute
   '/customer/order/$orderId': typeof CustomerOrderOrderIdRoute
+  '/customer/profile/ajuda': typeof CustomerProfileAjudaRoute
+  '/customer/profile/aparencia': typeof CustomerProfileAparenciaRoute
+  '/customer/profile/dados-pessoais': typeof CustomerProfileDadosPessoaisRoute
+  '/customer/profile/enderecos': typeof CustomerProfileEnderecosRoute
+  '/customer/profile/notificacoes': typeof CustomerProfileNotificacoesRoute
+  '/customer/profile/pagamento': typeof CustomerProfilePagamentoRoute
+  '/customer/profile/seguranca': typeof CustomerProfileSegurancaRoute
+  '/customer/profile/': typeof CustomerProfileIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -190,7 +252,6 @@ export interface FileRoutesByTo {
   '/app/products': typeof AppProductsRoute
   '/customer/blocked-drivers': typeof CustomerBlockedDriversRoute
   '/customer/orders': typeof CustomerOrdersRoute
-  '/customer/profile': typeof CustomerProfileRoute
   '/driver/deliveries': typeof DriverDeliveriesRoute
   '/driver/profile': typeof DriverProfileRoute
   '/driver/signup': typeof DriverSignupRoute
@@ -202,6 +263,14 @@ export interface FileRoutesByTo {
   '/driver': typeof DriverIndexRoute
   '/master': typeof MasterIndexRoute
   '/customer/order/$orderId': typeof CustomerOrderOrderIdRoute
+  '/customer/profile/ajuda': typeof CustomerProfileAjudaRoute
+  '/customer/profile/aparencia': typeof CustomerProfileAparenciaRoute
+  '/customer/profile/dados-pessoais': typeof CustomerProfileDadosPessoaisRoute
+  '/customer/profile/enderecos': typeof CustomerProfileEnderecosRoute
+  '/customer/profile/notificacoes': typeof CustomerProfileNotificacoesRoute
+  '/customer/profile/pagamento': typeof CustomerProfilePagamentoRoute
+  '/customer/profile/seguranca': typeof CustomerProfileSegurancaRoute
+  '/customer/profile': typeof CustomerProfileIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -217,7 +286,7 @@ export interface FileRoutesById {
   '/app/products': typeof AppProductsRoute
   '/customer/blocked-drivers': typeof CustomerBlockedDriversRoute
   '/customer/orders': typeof CustomerOrdersRoute
-  '/customer/profile': typeof CustomerProfileRoute
+  '/customer/profile': typeof CustomerProfileRouteWithChildren
   '/driver/deliveries': typeof DriverDeliveriesRoute
   '/driver/profile': typeof DriverProfileRoute
   '/driver/signup': typeof DriverSignupRoute
@@ -229,6 +298,14 @@ export interface FileRoutesById {
   '/driver/': typeof DriverIndexRoute
   '/master/': typeof MasterIndexRoute
   '/customer/order/$orderId': typeof CustomerOrderOrderIdRoute
+  '/customer/profile/ajuda': typeof CustomerProfileAjudaRoute
+  '/customer/profile/aparencia': typeof CustomerProfileAparenciaRoute
+  '/customer/profile/dados-pessoais': typeof CustomerProfileDadosPessoaisRoute
+  '/customer/profile/enderecos': typeof CustomerProfileEnderecosRoute
+  '/customer/profile/notificacoes': typeof CustomerProfileNotificacoesRoute
+  '/customer/profile/pagamento': typeof CustomerProfilePagamentoRoute
+  '/customer/profile/seguranca': typeof CustomerProfileSegurancaRoute
+  '/customer/profile/': typeof CustomerProfileIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -257,6 +334,14 @@ export interface FileRouteTypes {
     | '/driver/'
     | '/master/'
     | '/customer/order/$orderId'
+    | '/customer/profile/ajuda'
+    | '/customer/profile/aparencia'
+    | '/customer/profile/dados-pessoais'
+    | '/customer/profile/enderecos'
+    | '/customer/profile/notificacoes'
+    | '/customer/profile/pagamento'
+    | '/customer/profile/seguranca'
+    | '/customer/profile/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -267,7 +352,6 @@ export interface FileRouteTypes {
     | '/app/products'
     | '/customer/blocked-drivers'
     | '/customer/orders'
-    | '/customer/profile'
     | '/driver/deliveries'
     | '/driver/profile'
     | '/driver/signup'
@@ -279,6 +363,14 @@ export interface FileRouteTypes {
     | '/driver'
     | '/master'
     | '/customer/order/$orderId'
+    | '/customer/profile/ajuda'
+    | '/customer/profile/aparencia'
+    | '/customer/profile/dados-pessoais'
+    | '/customer/profile/enderecos'
+    | '/customer/profile/notificacoes'
+    | '/customer/profile/pagamento'
+    | '/customer/profile/seguranca'
+    | '/customer/profile'
   id:
     | '__root__'
     | '/'
@@ -305,6 +397,14 @@ export interface FileRouteTypes {
     | '/driver/'
     | '/master/'
     | '/customer/order/$orderId'
+    | '/customer/profile/ajuda'
+    | '/customer/profile/aparencia'
+    | '/customer/profile/dados-pessoais'
+    | '/customer/profile/enderecos'
+    | '/customer/profile/notificacoes'
+    | '/customer/profile/pagamento'
+    | '/customer/profile/seguranca'
+    | '/customer/profile/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -480,6 +580,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDriversRouteImport
       parentRoute: typeof AppRoute
     }
+    '/customer/profile/': {
+      id: '/customer/profile/'
+      path: '/'
+      fullPath: '/customer/profile/'
+      preLoaderRoute: typeof CustomerProfileIndexRouteImport
+      parentRoute: typeof CustomerProfileRoute
+    }
+    '/customer/profile/seguranca': {
+      id: '/customer/profile/seguranca'
+      path: '/seguranca'
+      fullPath: '/customer/profile/seguranca'
+      preLoaderRoute: typeof CustomerProfileSegurancaRouteImport
+      parentRoute: typeof CustomerProfileRoute
+    }
+    '/customer/profile/pagamento': {
+      id: '/customer/profile/pagamento'
+      path: '/pagamento'
+      fullPath: '/customer/profile/pagamento'
+      preLoaderRoute: typeof CustomerProfilePagamentoRouteImport
+      parentRoute: typeof CustomerProfileRoute
+    }
+    '/customer/profile/notificacoes': {
+      id: '/customer/profile/notificacoes'
+      path: '/notificacoes'
+      fullPath: '/customer/profile/notificacoes'
+      preLoaderRoute: typeof CustomerProfileNotificacoesRouteImport
+      parentRoute: typeof CustomerProfileRoute
+    }
+    '/customer/profile/enderecos': {
+      id: '/customer/profile/enderecos'
+      path: '/enderecos'
+      fullPath: '/customer/profile/enderecos'
+      preLoaderRoute: typeof CustomerProfileEnderecosRouteImport
+      parentRoute: typeof CustomerProfileRoute
+    }
+    '/customer/profile/dados-pessoais': {
+      id: '/customer/profile/dados-pessoais'
+      path: '/dados-pessoais'
+      fullPath: '/customer/profile/dados-pessoais'
+      preLoaderRoute: typeof CustomerProfileDadosPessoaisRouteImport
+      parentRoute: typeof CustomerProfileRoute
+    }
+    '/customer/profile/aparencia': {
+      id: '/customer/profile/aparencia'
+      path: '/aparencia'
+      fullPath: '/customer/profile/aparencia'
+      preLoaderRoute: typeof CustomerProfileAparenciaRouteImport
+      parentRoute: typeof CustomerProfileRoute
+    }
+    '/customer/profile/ajuda': {
+      id: '/customer/profile/ajuda'
+      path: '/ajuda'
+      fullPath: '/customer/profile/ajuda'
+      preLoaderRoute: typeof CustomerProfileAjudaRouteImport
+      parentRoute: typeof CustomerProfileRoute
+    }
     '/customer/order/$orderId': {
       id: '/customer/order/$orderId'
       path: '/order/$orderId'
@@ -506,10 +662,36 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface CustomerProfileRouteChildren {
+  CustomerProfileAjudaRoute: typeof CustomerProfileAjudaRoute
+  CustomerProfileAparenciaRoute: typeof CustomerProfileAparenciaRoute
+  CustomerProfileDadosPessoaisRoute: typeof CustomerProfileDadosPessoaisRoute
+  CustomerProfileEnderecosRoute: typeof CustomerProfileEnderecosRoute
+  CustomerProfileNotificacoesRoute: typeof CustomerProfileNotificacoesRoute
+  CustomerProfilePagamentoRoute: typeof CustomerProfilePagamentoRoute
+  CustomerProfileSegurancaRoute: typeof CustomerProfileSegurancaRoute
+  CustomerProfileIndexRoute: typeof CustomerProfileIndexRoute
+}
+
+const CustomerProfileRouteChildren: CustomerProfileRouteChildren = {
+  CustomerProfileAjudaRoute: CustomerProfileAjudaRoute,
+  CustomerProfileAparenciaRoute: CustomerProfileAparenciaRoute,
+  CustomerProfileDadosPessoaisRoute: CustomerProfileDadosPessoaisRoute,
+  CustomerProfileEnderecosRoute: CustomerProfileEnderecosRoute,
+  CustomerProfileNotificacoesRoute: CustomerProfileNotificacoesRoute,
+  CustomerProfilePagamentoRoute: CustomerProfilePagamentoRoute,
+  CustomerProfileSegurancaRoute: CustomerProfileSegurancaRoute,
+  CustomerProfileIndexRoute: CustomerProfileIndexRoute,
+}
+
+const CustomerProfileRouteWithChildren = CustomerProfileRoute._addFileChildren(
+  CustomerProfileRouteChildren,
+)
+
 interface CustomerRouteChildren {
   CustomerBlockedDriversRoute: typeof CustomerBlockedDriversRoute
   CustomerOrdersRoute: typeof CustomerOrdersRoute
-  CustomerProfileRoute: typeof CustomerProfileRoute
+  CustomerProfileRoute: typeof CustomerProfileRouteWithChildren
   CustomerIndexRoute: typeof CustomerIndexRoute
   CustomerOrderOrderIdRoute: typeof CustomerOrderOrderIdRoute
 }
@@ -517,7 +699,7 @@ interface CustomerRouteChildren {
 const CustomerRouteChildren: CustomerRouteChildren = {
   CustomerBlockedDriversRoute: CustomerBlockedDriversRoute,
   CustomerOrdersRoute: CustomerOrdersRoute,
-  CustomerProfileRoute: CustomerProfileRoute,
+  CustomerProfileRoute: CustomerProfileRouteWithChildren,
   CustomerIndexRoute: CustomerIndexRoute,
   CustomerOrderOrderIdRoute: CustomerOrderOrderIdRoute,
 }

@@ -12,7 +12,7 @@ export function CustomerBottomNav() {
   const location = useLocation();
   return (
     <nav
-      className="pointer-events-auto fixed inset-x-0 bottom-0 z-[500] grid grid-cols-3 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80"
+      className="pointer-events-auto fixed inset-x-0 bottom-0 z-500 grid grid-cols-3 border-t border-border bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/80 rounded-full mx-8 mb-4"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {items.map((it) => {
