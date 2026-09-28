@@ -11,11 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AddressMapPicker,
-  emptyAddress,
-  type AddressValue,
-} from "@/components/address/AddressMapPicker";
+import { AddressMapPicker } from "@/components/address/AddressMapPicker";
+import { emptyAddress } from "@/lib/address";
+import type { AddressValue } from "@/types/address";
 import { useSaveReseller } from "@/queries/admin.queries";
 import type { AdminReseller } from "@/types/admin";
 

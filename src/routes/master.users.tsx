@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Loader2, Shield, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/common/useConfirm";
 import {
   Table,
   TableBody,
@@ -36,6 +37,7 @@ import {
   usePromoteToMaster,
 } from "@/queries/admin.queries";
 import { useAuth } from "@/auth/AuthProvider";
+import { getRoleLabel } from "@/i18n/ptBR";
 
 export const Route = createFileRoute("/master/users")({
   component: UsersPage,
@@ -43,6 +45,7 @@ export const Route = createFileRoute("/master/users")({
 
 function UsersPage() {
   const { user: currentUser } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const [linkOpen, setLinkOpen] = useState<string | null>(null);
   const [linkResellerId, setLinkResellerId] = useState<string>("");
   const [linkRole, setLinkRole] = useState<"reseller_admin" | "driver">("reseller_admin");
@@ -102,7 +105,7 @@ function UsersPage() {
                     <div className="flex flex-wrap gap-1">
                       {u.roles.map((r) => (
                         <Badge key={r} variant={r === "master" ? "default" : "secondary"}>
-                          {r}
+                          {getRoleLabel(r)}
                         </Badge>
                       ))}
                     </div>
@@ -113,9 +116,13 @@ function UsersPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          if (confirm(`Promover ${u.full_name || "usuário"} a Master?`))
-                            promoteMaster.mutate(u.id);
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: `Promover ${u.full_name || "usuário"} a Master?`,
+                            description: "Ele terá acesso total à plataforma.",
+                            confirmLabel: "Promover",
+                          });
+                          if (ok) promoteMaster.mutate(u.id);
                         }}
                       >
                         <Shield className="mr-1 h-3 w-3" /> Master
@@ -125,9 +132,13 @@ function UsersPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            if (confirm(`Remover permissão Master de ${u.full_name || "usuário"}?`))
-                              demoteMaster.mutate(u.id);
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Remover permissão Master de ${u.full_name || "usuário"}?`,
+                              confirmLabel: "Remover",
+                              destructive: true,
+                            });
+                            if (ok) demoteMaster.mutate(u.id);
                           }}
                         >
                           <ShieldOff className="mr-1 h-3 w-3" /> Despromover
@@ -209,6 +220,7 @@ function UsersPage() {
           </Table>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

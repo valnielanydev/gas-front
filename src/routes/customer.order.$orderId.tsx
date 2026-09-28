@@ -206,12 +206,7 @@ function OrderTracking() {
         <Card>
           <CardContent className="space-y-2 p-4">
             <p className="text-sm">Seu pedido foi cancelado pelo motorista.</p>
-            <div className="flex gap-2">
-              <Button onClick={() => navigate({ to: "/customer" })}>Refazer pedido</Button>
-              <Button variant="outline" onClick={() => navigate({ to: "/customer" })}>
-                Escolher outra revendedora
-              </Button>
-            </div>
+            <Button onClick={goHome}>Fazer novo pedido</Button>
           </CardContent>
         </Card>
       )}

@@ -31,6 +31,7 @@ function ResellersPage() {
 
   const toggleActive = useToggleResellerActive({
     onSuccess: () => toast.success("Status atualizado"),
+    onError: (e) => toast.error(e.message || "Erro ao atualizar status"),
   });
 
   const deleteMutation = useDeleteReseller({

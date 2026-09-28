@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Plus, Loader2, Package, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/common/useConfirm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { useDeleteProduct, useResellerProducts, useSaveProduct } from "@/queries/reseller.queries";
 import type { Product } from "@/types/reseller";
 import { useAuth } from "@/auth/AuthProvider";
+import { fmtMoney } from "@/lib/constants";
 
 export const Route = createFileRoute("/app/products")({
   component: ProductsPage,
@@ -34,6 +36,7 @@ export const Route = createFileRoute("/app/products")({
 
 function ProductsPage() {
   const { resellerId } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState({ name: "", description: "", price: "", is_available: true });
@@ -184,7 +187,7 @@ function ProductsPage() {
               {products.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.name}</TableCell>
-                  <TableCell>R$ {Number(p.price).toFixed(2)}</TableCell>
+                  <TableCell>{fmtMoney(Number(p.price))}</TableCell>
                   <TableCell>
                     <Badge variant={p.is_available ? "default" : "secondary"}>
                       {p.is_available ? "Ativo" : "Inativo"}
@@ -197,8 +200,14 @@ function ProductsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => {
-                        if (confirm(`Remover "${p.name}"?`)) deleteMutation.mutate(p.id);
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: `Remover "${p.name}"?`,
+                          description: "O produto deixa de aparecer para os clientes.",
+                          confirmLabel: "Remover",
+                          destructive: true,
+                        });
+                        if (ok) deleteMutation.mutate(p.id);
                       }}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
@@ -210,6 +219,7 @@ function ProductsPage() {
           </Table>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

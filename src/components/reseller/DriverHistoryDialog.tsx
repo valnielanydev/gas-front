@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { useDriverHistory } from "@/queries/reseller.queries";
 import type { ResellerDriver } from "@/types/driver";
+import { fmtMoney } from "@/lib/constants";
 
 export function DriverHistoryDialog({
   driver,
@@ -93,7 +94,7 @@ export function DriverHistoryDialog({
                           <Badge variant="outline">{o.status}</Badge>
                         </TableCell>
                         <TableCell className="text-right text-sm font-medium">
-                          R$ {Number(o.total_amount).toFixed(2)}
+                          {fmtMoney(Number(o.total_amount))}
                         </TableCell>
                       </TableRow>
                     ))}
