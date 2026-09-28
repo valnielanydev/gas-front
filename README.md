@@ -2,7 +2,7 @@
 
 Interface web do sistema **VaptGás**, plataforma multi-tenant de delivery de gás com quatro perfis de usuário: **cliente**, **motorista**, **admin de revendedora** e **master**.
 
-Construído com TanStack Start (React 19 + SSR), TypeScript 5.8 strict e Tailwind CSS v4. Deploy via Cloudflare Workers.
+Construído com TanStack Start (React 19 + SSR), TypeScript 5.8 strict e Tailwind CSS v4.
 
 ---
 
@@ -18,8 +18,7 @@ Construído com TanStack Start (React 19 + SSR), TypeScript 5.8 strict e Tailwin
 | Geocodificação  | Nominatim (gratuito, sem chave)                               |
 | Validação       | Zod v4 (formulários de cadastro e perfil)                     |
 | Observabilidade | Sentry (opcional via `VITE_SENTRY_DSN`) + Web Vitals          |
-| Build           | Vite 7 + `@cloudflare/vite-plugin`                            |
-| Deploy          | Cloudflare Workers (`wrangler`)                               |
+| Build           | Vite 7                                                        |
 
 ---
 
@@ -38,11 +37,8 @@ Crie um arquivo `.env` na raiz:
 # URL da API acessível pelo browser (pública em produção)
 VITE_API_URL="http://localhost:3001"
 
-# URL da API para uso server-side (SSR / server functions)
-API_URL="http://localhost:3001"
-
-# Chave para chamadas M2M internas (opcional)
-API_SECRET_KEY=""
+# URL pública deste front, usada no og:image (opcional)
+VITE_SITE_URL=""
 
 # DSN do Sentry para captura de erros em produção (deixe vazio para desativar)
 VITE_SENTRY_DSN=""
@@ -56,7 +52,7 @@ VITE_SENTRY_DSN=""
 
 ```bash
 npm install
-npm run dev      # http://localhost:3000
+npm run dev      # http://localhost:8080
 ```
 
 A API Node.js precisa estar rodando em paralelo em `http://localhost:3001`.
@@ -66,12 +62,14 @@ A API Node.js precisa estar rodando em paralelo em `http://localhost:3001`.
 ## Scripts
 
 ```bash
-npm run dev        # servidor de desenvolvimento com HMR
-npm run build      # build de produção (Cloudflare Workers)
-npm run build:dev  # build no modo development
-npm run preview    # preview do build local
-npm run lint       # ESLint
-npm run format     # Prettier
+npm run dev          # servidor de desenvolvimento com HMR
+npm run build        # build de produção (dist/client + dist/server)
+npm run build:dev    # build no modo development
+npm run preview      # preview do build local
+npm run lint         # ESLint
+npm run typecheck    # checagem de tipos (tsc --noEmit)
+npm run format       # formata com Prettier
+npm run format:check # só verifica a formatação (para CI)
 ```
 
 ---
@@ -292,20 +290,10 @@ POST   /admin/users/:id/reseller-link { resellerId, role }
 
 ---
 
-## Deploy (Cloudflare Workers)
+## Deploy
 
-```bash
-npm run build
-npx wrangler deploy
-```
+`npm run build` gera `dist/client` (assets estáticos) e `dist/server/server.js`, que exporta um handler `fetch` padrão do TanStack Start. Ainda **não há um alvo de deploy configurado**: a configuração do Cloudflare Workers (`wrangler.jsonc` e plugin) foi removida junto com a config do Lovable. Para publicar, configure um adaptador (ex.: `@cloudflare/vite-plugin` + `wrangler`, ou Nitro para Node/Vercel/Netlify).
 
-Configure as variáveis como **secrets** no painel do Cloudflare ou via CLI:
+As variáveis `VITE_*` são embutidas no bundle **no momento do build**, então precisam estar definidas no ambiente em que `npm run build` roda. O build falha se `VITE_API_URL` estiver ausente ou inválida.
 
-```bash
-npx wrangler secret put VITE_API_URL
-npx wrangler secret put API_URL
-npx wrangler secret put API_SECRET_KEY
-npx wrangler secret put VITE_SENTRY_DSN   # opcional
-```
-
-> Em produção, `VITE_API_URL` e `API_URL` devem apontar para a URL pública da API (ex: `https://api.seudominio.com`).
+> Em produção, `VITE_API_URL` deve apontar para a URL pública da API (ex: `https://api.seudominio.com`).
