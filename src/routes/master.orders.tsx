@@ -8,7 +8,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { useAdminOrders } from "@/queries/admin.queries";
 import { fmtMoney } from "@/lib/constants";
 import { format } from "date-fns";

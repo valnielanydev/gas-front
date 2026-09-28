@@ -20,18 +20,25 @@ export function useDeliveryAddress({ pos, setPos, setGeoError }: Args) {
   const [address, setAddress] = useState("");
   const [addressTouched, setAddressTouched] = useState(false);
 
+  const hasAddress = address.trim() !== "";
+
   // Reverse-geocode the GPS position into a human-readable address (once, before user touches it)
   useEffect(() => {
-    if (!pos || addressTouched || address.trim()) return;
+    if (!pos || addressTouched || hasAddress) return;
+    // Dropped if the customer starts typing (or the position changes) before it answers
+    let cancelled = false;
     (async () => {
       try {
         const { displayName } = await geoService.reverseGeocode(pos[0], pos[1]);
-        if (displayName && !addressTouched) setAddress(displayName);
+        if (displayName && !cancelled) setAddress(displayName);
       } catch {
         // noop
       }
     })();
-  }, [pos, addressTouched]);
+    return () => {
+      cancelled = true;
+    };
+  }, [pos, addressTouched, hasAddress]);
 
   const applyLastAddress = (lastAddress: LastAddress) => {
     setAddress(lastAddress.address);
