@@ -12,7 +12,7 @@ import { ActiveOrderCard } from "@/components/driver/ActiveOrderCard";
 import { PendingOrdersSection } from "@/components/driver/PendingOrdersSection";
 import { DeliveryCompleteDialog } from "@/components/driver/DeliveryCompleteDialog";
 import { DeliveryRatingDrawer } from "@/components/driver/DeliveryRatingDrawer";
-import { orderService } from "@/services/order.service";
+import { useRateOrder } from "@/queries/order.queries";
 
 export const Route = createFileRoute("/driver/")({ component: DriverPage });
 
@@ -25,7 +25,6 @@ function DriverPage() {
   const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
   const [ratingValue, setRatingValue] = useState<number>(5);
   const [ratingComment, setRatingComment] = useState("");
-  const [ratingSaving, setRatingSaving] = useState(false);
 
   const confirmComplete = async () => {
     const deliveredOrderId = await d.completeDelivery(code);
@@ -36,25 +35,26 @@ function DriverPage() {
     setRateOpen(true);
   };
 
-  const submitDriverRating = async () => {
-    if (!ratingOrderId) return;
-    setRatingSaving(true);
-    try {
-      await orderService.rate(ratingOrderId, {
-        rating: ratingValue,
-        comment: ratingComment,
-        delivery_time_rating: null,
-      });
+  const rateOrder = useRateOrder({
+    onSuccess: () => {
       toast.success("Avaliação enviada");
       setRateOpen(false);
       setRatingOrderId(null);
       setRatingComment("");
       setRatingValue(5);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro");
-    } finally {
-      setRatingSaving(false);
-    }
+    },
+    onError: (e) => toast.error(e.message || "Erro"),
+  });
+  const ratingSaving = rateOrder.isPending;
+
+  const submitDriverRating = () => {
+    if (!ratingOrderId) return;
+    rateOrder.mutate({
+      orderId: ratingOrderId,
+      rating: ratingValue,
+      comment: ratingComment,
+      delivery_time_rating: null,
+    });
   };
 
   if (d.loading) {

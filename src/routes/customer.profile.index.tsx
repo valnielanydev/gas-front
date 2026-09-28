@@ -1,5 +1,4 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import {
   Bell,
   Camera,
@@ -30,7 +29,7 @@ import {
   profileRowClassName,
 } from "@/components/customer/ProfileRow";
 import { useAuth } from "@/auth/AuthProvider";
-import { customerService } from "@/services/customer.service";
+import { useCustomerActiveOrder } from "@/queries/customer.queries";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/customer/profile/")({
@@ -47,15 +46,7 @@ function initialsOf(name: string): string {
 function CustomerProfile() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [hasActiveOrder, setHasActiveOrder] = useState(false);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    customerService
-      .activeOrder()
-      .then((data) => setHasActiveOrder(Boolean(data?.id)))
-      .catch(() => {});
-  }, [user?.id]);
+  const hasActiveOrder = !!useCustomerActiveOrder(user?.id).data?.id;
 
   const handleLogout = async () => {
     await signOut();

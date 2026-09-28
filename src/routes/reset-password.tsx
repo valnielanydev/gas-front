@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { authService } from "@/services/auth.service";
+import { useResetPassword } from "@/queries/auth.queries";
 
 export const Route = createFileRoute("/reset-password")({
   component: ResetPasswordPage,
@@ -17,7 +17,14 @@ function ResetPasswordPage() {
   const [token, setToken] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [loading, setLoading] = useState(false);
+  const resetPassword = useResetPassword({
+    onSuccess: () => {
+      toast.success("Senha redefinida! Faça login novamente.");
+      navigate({ to: "/login" });
+    },
+    onError: (err) => toast.error(err.message || "Erro ao redefinir senha"),
+  });
+  const loading = resetPassword.isPending;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -42,21 +49,12 @@ function ResetPasswordPage() {
     navigate({ to: "/login" });
   }, [navigate]);
 
-  const onSubmit = async (e: FormEvent) => {
+  const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (password.length < 6) return toast.error("Mínimo 6 caracteres");
     if (password !== confirm) return toast.error("As senhas não coincidem");
     if (!token) return;
-    setLoading(true);
-    try {
-      await authService.resetPassword(token, password);
-      toast.success("Senha redefinida! Faça login novamente.");
-      navigate({ to: "/login" });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao redefinir senha");
-    } finally {
-      setLoading(false);
-    }
+    resetPassword.mutate({ token, password });
   };
 
   return (

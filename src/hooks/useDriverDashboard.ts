@@ -1,15 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
 import { useDriverLocation } from "@/hooks/useDriverLocation";
 import { estimateEtaMinutes, formatKm, haversineKm } from "@/lib/distance";
 import { driverKeys } from "@/queries/keys";
+import {
+  useCurrentDriver,
+  useDriverDashboardMetrics,
+  useOrdersCustomerDetails,
+} from "@/queries/driver.queries";
 import { driverService } from "@/services/driver.service";
 import { orderService } from "@/services/order.service";
 import type { Coords } from "@/types/common";
-import type { CustomerDetails, DriverDashboardData, DriverRow } from "@/types/driver";
+import type { CustomerDetails, DriverOnlineStatus, DriverRow } from "@/types/driver";
 import type { OrderRow } from "@/types/order";
+
+interface DriverOrders {
+  active: OrderRow | null;
+  pending: OrderRow[];
+}
+
+const NO_ORDERS: OrderRow[] = [];
 
 /**
  * State and actions behind the driver home screen: driver record, active/pending
@@ -18,109 +30,82 @@ import type { OrderRow } from "@/types/order";
 export function useDriverDashboard() {
   const { user } = useAuth();
 
-  const [loading, setLoading] = useState(true);
-  const [driver, setDriver] = useState<DriverRow | null>(null);
-  const [available, setAvailableOrders] = useState<OrderRow[]>([]);
-  const [active, setActive] = useState<OrderRow | null>(null);
+  const queryClient = useQueryClient();
+  const driverQuery = useCurrentDriver(user?.id);
+  const driver = driverQuery.data ?? null;
+  const loading = !!user && driverQuery.isPending;
 
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
-  const [completing, setCompleting] = useState(false);
-  const [togglingOnline, setTogglingOnline] = useState(false);
-  const [customerMap, setCustomerMap] = useState<Record<string, CustomerDetails>>({});
-  const [cancelling, setCancelling] = useState(false);
   const [selectedPendingOrderId, setSelectedPendingOrderId] = useState<string | null>(null);
   const [liveDriverCoords, setLiveDriverCoords] = useState<Coords | null>(null);
-  const [dashboardLoading, setDashboardLoading] = useState(true);
-  const [dashboard, setDashboard] = useState<DriverDashboardData | null>(null);
-
-  const driverRef = useRef<DriverRow | null>(null);
-  driverRef.current = driver;
-
-  const hydrateCustomerDetails = useCallback(async (orders: OrderRow[]) => {
-    if (!orders.length) {
-      setCustomerMap({});
-      return;
-    }
-    const ids = orders.map((o) => o.id);
-    try {
-      const rows = await driverService.customerDetails(ids);
-      const byOrder: Record<string, CustomerDetails> = {};
-      rows.forEach((r) => {
-        byOrder[r.order_id] = { customer_name: r.customer_name };
-      });
-      setCustomerMap(byOrder);
-    } catch {
-      setCustomerMap({});
-    }
-  }, []);
-
-  const loadDashboard = useCallback(async () => {
-    setDashboardLoading(true);
-    try {
-      const data = await driverService.dashboard();
-      setDashboard(data);
-    } catch {
-      setDashboard(null);
-    } finally {
-      setDashboardLoading(false);
-    }
-  }, []);
-
-  // Stable fetch function for orders — reads driver via ref so no deps churn
-  const fetchOrdersData = useCallback(async () => {
-    const drv = driverRef.current;
-    if (!drv) return null;
-    const activeOrder = await driverService.activeOrder().catch(() => null);
-    if (!activeOrder && drv.approval_status === "active") {
-      const pending = await driverService.pendingOrders().catch(() => [] as OrderRow[]);
-      return { active: activeOrder, pending };
-    }
-    return { active: activeOrder, pending: [] as OrderRow[] };
-  }, []);
 
   useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const drv = await driverService.me();
-        if (cancelled) return;
-        setDriver(drv);
-        await loadDashboard();
-      } catch {
-        if (!cancelled) toast.error("Cadastro de motorista não encontrado.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, loadDashboard]);
+    if (driverQuery.isError) toast.error("Cadastro de motorista não encontrado.");
+  }, [driverQuery.isError]);
 
-  const queryClient = useQueryClient();
+  /** Local status changes (online, busy...) are written straight into the cached record. */
+  const setDriverStatus = (status: DriverRow["status"]) =>
+    queryClient.setQueryData<DriverRow>(driverKeys.self(user?.id), (prev) =>
+      prev ? { ...prev, status } : prev,
+    );
 
-  const { data: ordersData } = useQuery({
-    queryKey: driverKeys.orders(driver?.id),
-    queryFn: fetchOrdersData,
+  const dashboardQuery = useDriverDashboardMetrics(user?.id, !!driver);
+  const dashboard = dashboardQuery.data ?? null;
+  const dashboardLoading = !dashboardQuery.data && dashboardQuery.isFetching;
+
+  const ordersKey = driverKeys.orders(driver?.id);
+  const ordersQuery = useQuery({
+    queryKey: ordersKey,
+    queryFn: async (): Promise<DriverOrders> => {
+      const active = await driverService.activeOrder().catch(() => null);
+      // Only an approved driver without a delivery in progress is offered new orders
+      if (active || driver?.approval_status !== "active") return { active, pending: [] };
+      const pending = await driverService.pendingOrders().catch(() => [] as OrderRow[]);
+      return { active: null, pending };
+    },
     enabled: !!driver?.id,
     refetchInterval: 15_000,
     staleTime: 0,
   });
+  const active = ordersQuery.data?.active ?? null;
+  const available = ordersQuery.data?.pending ?? NO_ORDERS;
+  const activeId = active?.id ?? null;
 
-  useEffect(() => {
-    if (!ordersData) return;
-    setActive(ordersData.active);
-    setAvailableOrders(ordersData.pending);
-    void hydrateCustomerDetails(ordersData.active ? [ordersData.active] : ordersData.pending);
-  }, [ordersData, hydrateCustomerDetails]);
+  /**
+   * Writes an action's result into the orders cache. An in-flight poll is cancelled first:
+   * it started before the action and would overwrite the result with stale data.
+   */
+  const setOrders = async (next: DriverOrders) => {
+    await queryClient.cancelQueries({ queryKey: ordersKey });
+    queryClient.setQueryData<DriverOrders>(ordersKey, next);
+  };
+
+  /** Back to "available" after a delivery ends: refetch orders and the day's metrics. */
+  const finishActiveOrder = async () => {
+    await setOrders({ active: null, pending: [] });
+    setDriverStatus("available");
+    void queryClient.invalidateQueries({ queryKey: ordersKey });
+    void queryClient.invalidateQueries({ queryKey: driverKeys.selfDashboard(user?.id) });
+  };
+
+  // Customer names for the orders on screen: the active one, or the pending list
+  const customerOrderIds = useMemo(
+    () => (active ? [active] : available).map((o) => o.id),
+    [active, available],
+  );
+  const customerDetailsQuery = useOrdersCustomerDetails(user?.id, customerOrderIds);
+  const customerMap = useMemo(() => {
+    const byOrder: Record<string, CustomerDetails> = {};
+    if (!customerOrderIds.length) return byOrder;
+    customerDetailsQuery.data?.forEach((r) => {
+      byOrder[r.order_id] = { customer_name: r.customer_name };
+    });
+    return byOrder;
+  }, [customerDetailsQuery.data, customerOrderIds]);
 
   useDriverLocation({
     driverId: driver?.id,
     driverStatus: driver?.status,
-    activeOrderId: active?.id ?? null,
+    activeOrderId: activeId,
     onLocationUpdate: setLiveDriverCoords,
     onGpsError: (count) => {
       if (count === 3) toast.warning("GPS indisponível. Verifique as permissões de localização.");
@@ -128,64 +113,80 @@ export function useDriverDashboard() {
   });
 
   useEffect(() => {
-    if (!active) return;
-    setSelectedPendingOrderId(null);
-  }, [active?.id]);
+    if (activeId) setSelectedPendingOrderId(null);
+  }, [activeId]);
 
+  // Fresh position as soon as a delivery starts, without waiting for the location watcher
   useEffect(() => {
-    if (!active) return;
+    if (!activeId) return;
     if (typeof navigator === "undefined" || !("geolocation" in navigator)) return;
     navigator.geolocation.getCurrentPosition(
       (p) => setLiveDriverCoords({ lat: p.coords.latitude, lng: p.coords.longitude }),
       () => {},
       { enableHighAccuracy: true, maximumAge: 10_000, timeout: 12_000 },
     );
-  }, [active?.id]);
+  }, [activeId]);
 
-  const toggleOnline = async (next: boolean) => {
-    if (!driver) return;
-    setTogglingOnline(true);
-    const newStatus = next ? "available" : "offline";
-    try {
-      await driverService.updateStatus(newStatus);
-      setDriver({ ...driver, status: newStatus });
-      toast.success(next ? "Você está online" : "Você está offline");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro");
-    } finally {
-      setTogglingOnline(false);
-    }
-  };
+  const toggleOnlineMutation = useMutation({
+    mutationFn: (status: DriverOnlineStatus) => driverService.updateStatus(status),
+    onSuccess: (_data, status) => {
+      setDriverStatus(status);
+      toast.success(status === "offline" ? "Você está offline" : "Você está online");
+    },
+    onError: (e) => toast.error(e.message || "Erro"),
+  });
 
-  const acceptOrder = async (orderId: string) => {
-    setAcceptingId(orderId);
-    try {
-      const accepted = await orderService.accept(orderId);
+  const acceptMutation = useMutation({
+    mutationFn: (orderId: string) => orderService.accept(orderId),
+    onSuccess: async (accepted, orderId) => {
       toast.success("Pedido aceito!");
-      setActive(accepted);
-      setAvailableOrders((prev) => prev.filter((o) => o.id !== orderId));
-      if (driver) setDriver({ ...driver, status: "busy" });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível aceitar.");
-      if (driver?.id)
-        void queryClient.invalidateQueries({ queryKey: driverKeys.orders(driver.id) });
-    } finally {
-      setAcceptingId(null);
-    }
+      await setOrders({ active: accepted, pending: available.filter((o) => o.id !== orderId) });
+      setDriverStatus("busy");
+    },
+    onError: (e) => {
+      toast.error(e.message || "Não foi possível aceitar.");
+      // Most likely another driver took it: show the current list
+      void queryClient.invalidateQueries({ queryKey: ordersKey });
+    },
+  });
+
+  const startMutation = useMutation({
+    mutationFn: (orderId: string) => driverService.startDelivery(orderId),
+    onSuccess: async (updated) => {
+      await setOrders({ active: updated, pending: [] });
+      toast.success("Entrega iniciada");
+    },
+    onError: (e) => toast.error(e.message || "Erro"),
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: ({ orderId, code }: { orderId: string; code: string }) =>
+      orderService.complete(orderId, code),
+    onSuccess: async () => {
+      toast.success("Pedido entregue!");
+      await finishActiveOrder();
+    },
+    onError: (e) => toast.error(e.message || "Código inválido"),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (orderId: string) => orderService.cancelByDriver(orderId),
+    onSuccess: async () => {
+      toast.success("Entrega cancelada");
+      await finishActiveOrder();
+    },
+    onError: (e) => toast.error(e.message || "Erro"),
+  });
+
+  const toggleOnline = (next: boolean) => {
+    if (!driver) return;
+    toggleOnlineMutation.mutate(next ? "available" : "offline");
   };
 
-  const startDelivery = async () => {
-    if (!active) return;
-    setStarting(true);
-    try {
-      const updated = await driverService.startDelivery(active.id);
-      setActive(updated);
-      toast.success("Entrega iniciada");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro");
-    } finally {
-      setStarting(false);
-    }
+  const acceptOrder = (orderId: string) => acceptMutation.mutate(orderId);
+
+  const startDelivery = () => {
+    if (active) startMutation.mutate(active.id);
   };
 
   /** Returns the delivered order id on success, `null` otherwise. */
@@ -195,45 +196,16 @@ export function useDriverDashboard() {
       toast.error("Digite os 4 dígitos do código");
       return null;
     }
-    setCompleting(true);
     try {
-      await orderService.complete(active.id, code);
-      toast.success("Pedido entregue!");
-      const deliveredOrderId = active.id;
-      setActive(null);
-      if (driver) {
-        const refreshed = { ...driver, status: "available" as const };
-        setDriver(refreshed);
-        void queryClient.invalidateQueries({ queryKey: driverKeys.orders(driver.id) });
-        void loadDashboard();
-      }
-      return deliveredOrderId;
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Código inválido");
-      return null;
-    } finally {
-      setCompleting(false);
+      await completeMutation.mutateAsync({ orderId: active.id, code });
+      return active.id;
+    } catch {
+      return null; // already reported by onError
     }
   };
 
-  const cancelDelivery = async () => {
-    if (!active) return;
-    setCancelling(true);
-    try {
-      await orderService.cancelByDriver(active.id);
-      toast.success("Entrega cancelada");
-      setActive(null);
-      if (driver) {
-        const refreshed = { ...driver, status: "available" as const };
-        setDriver(refreshed);
-        void queryClient.invalidateQueries({ queryKey: driverKeys.orders(driver.id) });
-        void loadDashboard();
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro");
-    } finally {
-      setCancelling(false);
-    }
+  const cancelDelivery = () => {
+    if (active) cancelMutation.mutate(active.id);
   };
 
   const isOnline = driver?.status !== "offline";
@@ -301,11 +273,11 @@ export function useDriverDashboard() {
     straightLineTrip,
     selectedPendingOrderId,
     setSelectedPendingOrderId,
-    togglingOnline,
-    acceptingId,
-    starting,
-    completing,
-    cancelling,
+    togglingOnline: toggleOnlineMutation.isPending,
+    acceptingId: acceptMutation.isPending ? acceptMutation.variables : null,
+    starting: startMutation.isPending,
+    completing: completeMutation.isPending,
+    cancelling: cancelMutation.isPending,
     toggleOnline,
     acceptOrder,
     startDelivery,

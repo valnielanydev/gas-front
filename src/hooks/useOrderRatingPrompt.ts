@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { orderService } from "@/services/order.service";
+import { useRateOrder } from "@/queries/order.queries";
 import type { DeliveryRating, FullOrder } from "@/types/order";
 
 /**
@@ -17,7 +17,6 @@ export function useOrderRatingPrompt(
   const [ratingValue, setRatingValue] = useState(5);
   const [deliveryTimeRatingValue, setDeliveryTimeRatingValue] = useState(5);
   const [ratingComment, setRatingComment] = useState("");
-  const [ratingSaving, setRatingSaving] = useState(false);
 
   const ratingModalStorageKey = useMemo(
     () => `customer-rating-modal-opened:${order?.id ?? orderId}`,
@@ -32,27 +31,25 @@ export function useOrderRatingPrompt(
     window.sessionStorage.setItem(ratingModalStorageKey, "1");
   }, [order, customerRating, ratingModalStorageKey]);
 
-  const submitCustomerRating = async () => {
-    if (!order?.id) return;
-    setRatingSaving(true);
-    try {
-      const payload = await orderService.rate(order.id, {
-        rating: ratingValue,
-        comment: ratingComment,
-        delivery_time_rating: deliveryTimeRatingValue,
-      });
-      if (payload.evaluator_role && payload.evaluator_role !== "customer") {
-        toast.error("Avaliação recebida de um perfil diferente do esperado. Tente novamente.");
-        return;
-      }
+  const rateOrder = useRateOrder({
+    expectedRole: "customer",
+    onSuccess: () => {
       setOpen(false);
       toast.success("Avaliação salva com sucesso");
       onDone();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao salvar avaliação");
-    } finally {
-      setRatingSaving(false);
-    }
+    },
+    onError: (err) => toast.error(err.message || "Erro ao salvar avaliação"),
+  });
+  const ratingSaving = rateOrder.isPending;
+
+  const submitCustomerRating = () => {
+    if (!order?.id) return;
+    rateOrder.mutate({
+      orderId: order.id,
+      rating: ratingValue,
+      comment: ratingComment,
+      delivery_time_rating: deliveryTimeRatingValue,
+    });
   };
 
   const skipCustomerRating = () => {

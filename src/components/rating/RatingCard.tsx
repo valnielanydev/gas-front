@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { orderService } from "@/services/order.service";
+import { useRateOrder } from "@/queries/order.queries";
 import type { DeliveryRating } from "@/types/order";
 import { toast } from "sonner";
 
@@ -27,41 +27,32 @@ export function RatingCard({
   const [value, setValue] = useState(existingRating?.rating ?? 5);
   const [comment, setComment] = useState(existingRating?.comment ?? "");
   const [timeValue, setTimeValue] = useState(existingRating?.delivery_time_rating ?? 5);
-  const [saving, setSaving] = useState(false);
 
+  // Re-sync when the saved rating changes (compared by field: the object is new every fetch)
+  const hasRating = !!existingRating;
+  const savedRating = existingRating?.rating;
+  const savedComment = existingRating?.comment;
+  const savedTimeRating = existingRating?.delivery_time_rating;
   useEffect(() => {
-    setValue(existingRating?.rating ?? 5);
-    setComment(existingRating?.comment ?? "");
-    setTimeValue(existingRating?.delivery_time_rating ?? 5);
-    setEditing(!existingRating);
-  }, [existingRating?.rating, existingRating?.comment]);
+    setValue(savedRating ?? 5);
+    setComment(savedComment ?? "");
+    setTimeValue(savedTimeRating ?? 5);
+    setEditing(!hasRating);
+  }, [hasRating, savedRating, savedComment, savedTimeRating]);
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      const payload = await orderService.rate(orderId, {
-        rating: value,
-        comment,
-        delivery_time_rating: timeValue,
-      });
-      if (payload.evaluator_role && payload.evaluator_role !== expectedEvaluatorRole) {
-        toast.error("Avaliação recebida de um perfil diferente do esperado. Tente novamente.");
-        return;
-      }
-      const normalized: DeliveryRating = {
-        rating: Number(payload.rating),
-        comment: payload.comment ?? null,
-        delivery_time_rating: payload.delivery_time_rating ?? null,
-      };
-      onSaved?.(normalized);
+  const rateOrder = useRateOrder({
+    expectedRole: expectedEvaluatorRole,
+    onSuccess: (saved) => {
+      onSaved?.(saved);
       setEditing(false);
       toast.success("Avaliação salva com sucesso");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao salvar avaliação");
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    onError: (err) => toast.error(err.message || "Erro ao salvar avaliação"),
+  });
+  const saving = rateOrder.isPending;
+
+  const save = () =>
+    rateOrder.mutate({ orderId, rating: value, comment, delivery_time_rating: timeValue });
 
   return (
     <div className="w-full max-w-full overflow-hidden rounded-xl border bg-muted/30 p-3">

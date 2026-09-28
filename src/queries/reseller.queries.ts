@@ -1,7 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { orderService } from "@/services/order.service";
 import { resellerService } from "@/services/reseller.service";
-import type { DriverApprovalStatus, ResellerDriver, UpdateDriverPayload } from "@/types/driver";
+import type {
+  DriverApprovalStatus,
+  DriverInvite,
+  ResellerDriver,
+  UpdateDriverPayload,
+} from "@/types/driver";
 import type { UpsertProductPayload } from "@/types/reseller";
 import { driverKeys, resellerKeys } from "./keys";
 import { useInvalidatingMutation, type MutationHookOptions } from "./mutation";
@@ -130,4 +135,12 @@ export function useRemoveDriver(
     () => [resellerKeys.drivers(resellerId), resellerKeys.stats(resellerId)],
     options,
   );
+}
+
+/** New single-use invite link for a driver to sign up with this reseller. */
+export function useGenerateDriverInvite(options?: MutationHookOptions<DriverInvite, void>) {
+  return useMutation({
+    ...options,
+    mutationFn: () => resellerService.generateDriverInvite(),
+  });
 }

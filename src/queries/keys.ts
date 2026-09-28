@@ -28,6 +28,15 @@ export const driverKeys = {
   history: (driverId: string | undefined) => [...driverKeys.detail(driverId), "history"] as const,
   /** Active + pending orders shown on the driver dashboard. */
   orders: (driverId: string | undefined) => [...driverKeys.detail(driverId), "orders"] as const,
+  /** Records of the logged-in driver, keyed by user id (the driver id isn't known yet). */
+  self: (userId: string | undefined) => [...driverKeys.all, "self", userId] as const,
+  selfProfile: (userId: string | undefined) => [...driverKeys.self(userId), "profile"] as const,
+  selfDashboard: (userId: string | undefined) => [...driverKeys.self(userId), "dashboard"] as const,
+  selfDeliveries: (userId: string | undefined) =>
+    [...driverKeys.self(userId), "deliveries"] as const,
+  customerDetails: (userId: string | undefined, orderIds: string[]) =>
+    [...driverKeys.self(userId), "customer-details", orderIds] as const,
+  invite: (token: string) => [...driverKeys.all, "invite", token] as const,
 };
 
 export const customerKeys = {
@@ -37,9 +46,18 @@ export const customerKeys = {
     [...customerKeys.detail(userId), "active-order"] as const,
   lastDeliveryAddress: (userId: string | undefined) =>
     [...customerKeys.detail(userId), "last-delivery-address"] as const,
+  orders: (userId: string | undefined) => [...customerKeys.detail(userId), "orders"] as const,
+  ratingsAll: (userId: string | undefined) => [...customerKeys.detail(userId), "ratings"] as const,
+  ratings: (userId: string | undefined, orderIds: string[]) =>
+    [...customerKeys.ratingsAll(userId), orderIds] as const,
+  driverMetrics: (userId: string | undefined, orderIds: string[]) =>
+    [...customerKeys.detail(userId), "driver-metrics", orderIds] as const,
+  blockedDrivers: (userId: string | undefined) =>
+    [...customerKeys.detail(userId), "blocked-drivers"] as const,
 };
 
 export const orderKeys = {
   all: ["order"] as const,
   tracking: (orderId: string) => [...orderKeys.all, orderId, "tracking"] as const,
+  detail: (orderId: string) => [...orderKeys.all, orderId, "detail"] as const,
 };

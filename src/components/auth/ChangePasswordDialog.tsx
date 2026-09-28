@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/integrations/api/client";
-import { authService } from "@/services/auth.service";
+import { useChangePassword } from "@/queries/auth.queries";
 
 interface Props {
   trigger?: ReactNode;
@@ -25,7 +25,6 @@ export function ChangePasswordDialog({ trigger }: Props) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [loading, setLoading] = useState(false);
 
   const reset = () => {
     setCurrent("");
@@ -33,26 +32,27 @@ export function ChangePasswordDialog({ trigger }: Props) {
     setConfirm("");
   };
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (next.length < 6) return toast.error("A nova senha precisa ter no mínimo 6 caracteres");
-    if (next !== confirm) return toast.error("As senhas não coincidem");
-
-    setLoading(true);
-    try {
-      await authService.changePassword(current, next);
+  const changePassword = useChangePassword({
+    onSuccess: () => {
       toast.success("Senha alterada com sucesso!");
       reset();
       setOpen(false);
-    } catch (err) {
+    },
+    onError: (err) => {
       if (err instanceof ApiError && err.status === 401) {
         toast.error("Senha atual incorreta");
       } else {
         toast.error(err instanceof ApiError ? err.message : "Erro ao alterar senha");
       }
-    } finally {
-      setLoading(false);
-    }
+    },
+  });
+  const loading = changePassword.isPending;
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (next.length < 6) return toast.error("A nova senha precisa ter no mínimo 6 caracteres");
+    if (next !== confirm) return toast.error("As senhas não coincidem");
+    changePassword.mutate({ currentPassword: current, newPassword: next });
   };
 
   return (

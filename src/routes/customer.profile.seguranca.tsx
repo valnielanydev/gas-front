@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ProfileDetailHeader } from "@/components/customer/ProfileDetailHeader";
 import { ApiError } from "@/integrations/api/client";
-import { authService } from "@/services/auth.service";
+import { useChangePassword } from "@/queries/auth.queries";
 
 export const Route = createFileRoute("/customer/profile/seguranca")({
   component: SecurityPage,
@@ -18,26 +18,25 @@ function SecurityPage() {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const save = async () => {
-    if (next.length < 6) return toast.error("A nova senha precisa ter no mínimo 6 caracteres");
-    if (next !== confirm) return toast.error("As senhas não coincidem");
-
-    setLoading(true);
-    try {
-      await authService.changePassword(current, next);
+  const changePassword = useChangePassword({
+    onSuccess: () => {
       toast.success("Senha atualizada");
       navigate({ to: "/customer/profile" });
-    } catch (err) {
+    },
+    onError: (err) => {
       if (err instanceof ApiError && err.status === 401) {
         toast.error("Senha atual incorreta");
       } else {
         toast.error(err instanceof ApiError ? err.message : "Erro ao atualizar senha");
       }
-    } finally {
-      setLoading(false);
-    }
+    },
+  });
+  const loading = changePassword.isPending;
+
+  const save = () => {
+    if (next.length < 6) return toast.error("A nova senha precisa ter no mínimo 6 caracteres");
+    if (next !== confirm) return toast.error("As senhas não coincidem");
+    changePassword.mutate({ currentPassword: current, newPassword: next });
   };
 
   return (

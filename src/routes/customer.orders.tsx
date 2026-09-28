@@ -1,120 +1,83 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, Package, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { customerService } from "@/services/customer.service";
-import { orderService } from "@/services/order.service";
+import {
+  useCustomerOrders,
+  useCustomerRatings,
+  useDriverMetricsForOrders,
+  useOrderDetail,
+} from "@/queries/customer.queries";
 import { useAuth } from "@/auth/AuthProvider";
 import { fmtMoney } from "@/lib/constants";
 import { RatingCard } from "@/components/rating/RatingCard";
-import type { DriverMetrics } from "@/types/customer";
-import type { CustomerOrder, DeliveryRating } from "@/types/order";
+import { LoadError } from "@/components/common/LoadError";
+import type { CustomerOrder } from "@/types/order";
 import { getOrderStatusLabel, getPaymentMethodLabel, isOrderActive } from "@/lib/order-status";
 
 export const Route = createFileRoute("/customer/orders")({
   component: MyOrders,
 });
 
-type OrderDetails = {
-  order: CustomerOrder;
-  resellerName: string | null;
-  productName: string | null;
-  rating: DeliveryRating | null;
-};
-
-const PAGE_SIZE = 10;
-
 function MyOrders() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [rows, setRows] = useState<CustomerOrder[] | null>(null);
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [ratingsByOrder, setRatingsByOrder] = useState<Record<string, DeliveryRating>>({});
-  const [driverMetricsByOrder, setDriverMetricsByOrder] = useState<Record<string, DriverMetrics>>(
-    {},
+  const {
+    items: rows,
+    hasMore,
+    loadMore,
+    isLoadingMore,
+    isError,
+    retry,
+    isRetrying,
+  } = useCustomerOrders(user?.id);
+
+  const orderIds = useMemo(() => rows?.map((o) => o.id) ?? [], [rows]);
+  const deliveredIds = useMemo(
+    () => rows?.filter((o) => o.status === "delivered").map((o) => o.id) ?? [],
+    [rows],
   );
-  const [selectedOrder, setSelectedOrder] = useState<OrderDetails | null>(null);
-  const [loadingOrderDetails, setLoadingOrderDetails] = useState(false);
+  const { data: ratingsByOrder = {} } = useCustomerRatings(user?.id, deliveredIds);
+  const { data: driverMetricsByOrder = {} } = useDriverMetricsForOrders(user?.id, orderIds);
 
-  const fetchOrders = async (nextOffset: number, append: boolean) => {
-    if (!user) return;
-    const data = await customerService.listOrders(PAGE_SIZE, nextOffset);
-    const incoming = data.orders ?? [];
-    setRows((prev) => {
-      if (!append || !prev) return incoming;
-      const deduped = incoming.filter((row) => !prev.some((existing) => existing.id === row.id));
-      return [...prev, ...deduped];
-    });
-    setOffset(nextOffset + incoming.length);
-    setHasMore(data.hasMore ?? incoming.length === PAGE_SIZE);
-  };
+  const [clickedOrder, setClickedOrder] = useState<CustomerOrder | null>(null);
+  const detail = useOrderDetail(clickedOrder?.id ?? null);
+  const loadingOrderDetails = !!clickedOrder && detail.isPending;
+  // On a failed detail request the drawer still opens, with what the list already knows
+  const selectedOrder =
+    clickedOrder && !loadingOrderDetails
+      ? {
+          order: clickedOrder,
+          productName: detail.data?.productName ?? null,
+          resellerName: detail.data?.resellerName ?? null,
+          rating: detail.data?.rating ?? ratingsByOrder[clickedOrder.id] ?? null,
+        }
+      : null;
+  const closeDetails = () => setClickedOrder(null);
 
-  useEffect(() => {
-    if (!user) return;
-    setRows(null);
-    setOffset(0);
-    setHasMore(true);
-    fetchOrders(0, false).catch(() => setRows([]));
-  }, [user]);
-
-  useEffect(() => {
-    if (!rows?.length) return;
-    const deliveredIds = rows.filter((o) => o.status === "delivered").map((o) => o.id);
-    if (!deliveredIds.length) return;
-    customerService
-      .ratingsForOrders(deliveredIds)
-      .then((mapped) => setRatingsByOrder((prev) => ({ ...prev, ...mapped })))
-      .catch(() => {});
-  }, [rows]);
-
-  useEffect(() => {
-    if (!rows?.length) return;
-    const ids = rows.map((o) => o.id);
-    customerService
-      .driverMetricsForOrders(ids)
-      .then((entries) => setDriverMetricsByOrder((prev) => ({ ...prev, ...entries })))
-      .catch(() => {});
-  }, [rows]);
-
-  const handleOrderClick = async (order: CustomerOrder) => {
+  const handleOrderClick = (order: CustomerOrder) => {
     if (isOrderActive(order.status)) {
       navigate({ to: "/customer/order/$orderId", params: { orderId: order.id } });
       return;
     }
-    setLoadingOrderDetails(true);
-    setSelectedOrder(null);
-    try {
-      const detail = await orderService.detail(order.id);
-      setSelectedOrder({
-        order,
-        productName: detail.productName ?? null,
-        resellerName: detail.resellerName ?? null,
-        rating: detail.rating ?? ratingsByOrder[order.id] ?? null,
-      });
-    } catch {
-      setSelectedOrder({
-        order,
-        productName: null,
-        resellerName: null,
-        rating: ratingsByOrder[order.id] ?? null,
-      });
-    } finally {
-      setLoadingOrderDetails(false);
-    }
+    setClickedOrder(order);
   };
-
-  const canLoadMore = useMemo(() => !!rows?.length && hasMore, [rows, hasMore]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-3 p-4 pb-24">
       <h1 className="text-lg font-bold">Meus pedidos</h1>
 
-      {rows === null && (
+      {isError && (
+        <LoadError
+          message="Não foi possível carregar seus pedidos."
+          onRetry={retry}
+          retrying={isRetrying}
+        />
+      )}
+      {rows === null && !isError && (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
@@ -172,17 +135,13 @@ function MyOrders() {
         </button>
       ))}
 
-      {canLoadMore && (
+      {hasMore && (
         <Button
           type="button"
           variant="outline"
           className="w-full"
           disabled={isLoadingMore}
-          onClick={async () => {
-            setIsLoadingMore(true);
-            await fetchOrders(offset, true).catch(() => {});
-            setIsLoadingMore(false);
-          }}
+          onClick={loadMore}
         >
           {isLoadingMore ? "Carregando..." : "Carregar mais pedidos"}
         </Button>
@@ -191,7 +150,7 @@ function MyOrders() {
       <Drawer
         snapPoints={[0.5, 0.88]}
         open={loadingOrderDetails || !!selectedOrder}
-        onOpenChange={(open) => !open && setSelectedOrder(null)}
+        onOpenChange={(open) => !open && closeDetails()}
       >
         <DrawerContent className="max-h-[88dvh]">
           <DrawerHeader className="text-left">
@@ -241,13 +200,6 @@ function MyOrders() {
                       existingRating={selectedOrder.rating}
                       expectedEvaluatorRole="customer"
                       allowEdit
-                      onSaved={(rating) => {
-                        setRatingsByOrder((prev) => ({
-                          ...prev,
-                          [selectedOrder.order.id]: rating,
-                        }));
-                        setSelectedOrder((prev) => (prev ? { ...prev, rating } : prev));
-                      }}
                       title="Editar avaliação"
                     />
                   </div>
@@ -256,7 +208,7 @@ function MyOrders() {
                   type="button"
                   variant="secondary"
                   className="mt-2 w-full"
-                  onClick={() => setSelectedOrder(null)}
+                  onClick={closeDetails}
                 >
                   Fechar
                 </Button>

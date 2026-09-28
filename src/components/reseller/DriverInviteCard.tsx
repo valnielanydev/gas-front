@@ -3,25 +3,20 @@ import { Copy, Loader2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { resellerService } from "@/services/reseller.service";
+import { useGenerateDriverInvite } from "@/queries/reseller.queries";
 
 export function DriverInviteCard() {
   const [invite, setInvite] = useState<{ url: string; expiresAt: string } | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const generate = async () => {
-    setLoading(true);
-    try {
-      const res = await resellerService.generateDriverInvite();
+  const generateInvite = useGenerateDriverInvite({
+    onSuccess: (res) => {
       const url = `${window.location.origin}/driver/signup?token=${res.token}`;
       setInvite({ url, expiresAt: res.expires_at });
       toast.success("Convite gerado! Válido por 24h.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao gerar convite");
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    onError: (e) => toast.error(e.message || "Erro ao gerar convite"),
+  });
+  const loading = generateInvite.isPending;
+  const generate = () => generateInvite.mutate();
 
   const copy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -59,22 +54,22 @@ export function DriverInviteCard() {
               <Button variant="outline" size="sm" onClick={() => copy(invite.url, "Link")}>
                 <Copy className="h-4 w-4" /> Copiar link
               </Button>
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(waMsg)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Button variant="outline" size="sm" type="button">
+              <Button asChild variant="outline" size="sm">
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(waMsg)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   WhatsApp
-                </Button>
-              </a>
-              <a
-                href={`mailto:?subject=${encodeURIComponent("Convite VaptGás - Motorista")}&body=${encodeURIComponent(waMsg)}`}
-              >
-                <Button variant="outline" size="sm" type="button">
+                </a>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <a
+                  href={`mailto:?subject=${encodeURIComponent("Convite VaptGás - Motorista")}&body=${encodeURIComponent(waMsg)}`}
+                >
                   E-mail
-                </Button>
-              </a>
+                </a>
+              </Button>
             </div>
           </div>
         )}

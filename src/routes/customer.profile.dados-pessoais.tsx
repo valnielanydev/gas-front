@@ -9,10 +9,10 @@ import { Label } from "@/components/ui/label";
 import { ProfileDetailHeader } from "@/components/customer/ProfileDetailHeader";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError } from "@/integrations/api/client";
-import { customerService } from "@/services/customer.service";
+import { useUpdateCustomerProfile } from "@/queries/customer.queries";
 import { formatPhone } from "@/lib/phone";
 import { onlyDigits } from "@/lib/utils";
-import { optionalPhoneSchema } from "@/lib/validation";
+import { fieldErrors, optionalPhoneSchema } from "@/lib/validation";
 
 export const Route = createFileRoute("/customer/profile/dados-pessoais")({
   component: PersonalDataPage,
@@ -28,40 +28,32 @@ const profileSchema = z.object({
 type ProfileErrors = Partial<Record<keyof z.infer<typeof profileSchema>, string>>;
 
 function PersonalDataPage() {
-  const { user, refresh } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const [saving, setSaving] = useState(false);
+  const updateProfile = useUpdateCustomerProfile({
+    onSuccess: () => {
+      toast.success("Alterações salvas");
+      navigate({ to: "/customer/profile" });
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erro ao salvar"),
+  });
+  const saving = updateProfile.isPending;
   const [errors, setErrors] = useState<ProfileErrors>({});
   const [fullName, setFullName] = useState(user?.name ?? "");
   const [phone, setPhone] = useState(formatPhone(user?.phone ?? ""));
   const cpf = user?.cpf ?? "";
 
-  const save = async () => {
+  const save = () => {
     const result = profileSchema.safeParse({ fullName, phone });
     if (!result.success) {
-      const fieldErrors: ProfileErrors = {};
-      for (const issue of result.error.issues) {
-        const field = issue.path[0] as keyof ProfileErrors;
-        if (!fieldErrors[field]) fieldErrors[field] = issue.message;
-      }
-      setErrors(fieldErrors);
+      setErrors(fieldErrors(result.error));
       return;
     }
     setErrors({});
-    setSaving(true);
-    try {
-      await customerService.updateProfile({
-        name: fullName.trim() || null,
-        phone: onlyDigits(phone) || null,
-      });
-      await refresh();
-      toast.success("Alterações salvas");
-      navigate({ to: "/customer/profile" });
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erro ao salvar");
-    } finally {
-      setSaving(false);
-    }
+    updateProfile.mutate({
+      name: fullName.trim() || null,
+      phone: onlyDigits(phone) || null,
+    });
   };
 
   return (
