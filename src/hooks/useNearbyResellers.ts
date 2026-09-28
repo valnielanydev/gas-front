@@ -5,16 +5,21 @@ import type { NearbyReseller } from "@/types/reseller";
 
 const PAGE_SIZE = 3;
 
-export function useNearbyResellers(pos: [number, number] | null) {
+/**
+ * Resellers around `pos`. With no position yet, it reports loading only while the GPS is
+ * still trying (`locationFailed` false); once it failed, the list is simply empty so the
+ * screen can ask for an address instead of spinning forever.
+ */
+export function useNearbyResellers(pos: [number, number] | null, locationFailed: boolean) {
   const [resellers, setResellers] = useState<NearbyReseller[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!pos) return;
     let cancelled = false;
-    setLoading(true);
+    setFetching(true);
     resellerService
       .nearby(pos[0], pos[1])
       .then((data) => {
@@ -30,7 +35,7 @@ export function useNearbyResellers(pos: [number, number] | null) {
         setResellers([]);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setFetching(false);
       });
     return () => {
       cancelled = true;
@@ -51,6 +56,8 @@ export function useNearbyResellers(pos: [number, number] | null) {
     obs.observe(el);
     return () => obs.disconnect();
   }, [resellers.length]);
+
+  const loading = pos ? fetching : !locationFailed;
 
   return { resellers, loading, visibleCount, sentinelRef };
 }

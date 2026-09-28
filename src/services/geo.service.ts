@@ -41,7 +41,7 @@ export const geoService = {
 
   searchAddress: async (
     query: string,
-    { limit = 1, countryCodes = "br", near }: SearchAddressOptions = {},
+    { limit = 1, countryCodes = "br", near, signal }: SearchAddressOptions = {},
   ): Promise<GeocodeResult[]> => {
     const params = new URLSearchParams({ format: "json", limit: String(limit), q: query });
     if (countryCodes) params.set("countrycodes", countryCodes);
@@ -54,7 +54,7 @@ export const geoService = {
     }
     const rows = await getJson<Array<{ display_name: string; lat: string; lon: string }>>(
       `${NOMINATIM_URL}/search?${params}`,
-      { headers: NOMINATIM_HEADERS },
+      { headers: NOMINATIM_HEADERS, signal },
     );
     return rows.map((r) => ({
       displayName: r.display_name,

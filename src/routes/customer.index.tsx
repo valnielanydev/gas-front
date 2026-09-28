@@ -25,7 +25,7 @@ function CustomerHome() {
   const navigate = useNavigate();
 
   const { pos, setPos, error: geoError, setError: setGeoError } = useGeolocation();
-  const { resellers, loading, visibleCount, sentinelRef } = useNearbyResellers(pos);
+  const { resellers, loading, visibleCount, sentinelRef } = useNearbyResellers(pos, !!geoError);
   const { address, applyLastAddress, confirmAddress } = useDeliveryAddress({
     pos,
     setPos,
@@ -80,7 +80,7 @@ function CustomerHome() {
       <div className="mx-auto flex min-h-[calc(100dvh-6rem)] max-w-2xl flex-col gap-4 px-4 pt-4 sm:px-6 sm:pt-6">
         <header className="flex items-center justify-between gap-3 py-1">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">GasFlow</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">VaptGás</p>
             <h1 className="truncate text-2xl font-black tracking-tight">
               Olá
               {user?.name ? `, ${user.name.split(" ")[0]}` : ""}

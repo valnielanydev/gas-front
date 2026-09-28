@@ -34,6 +34,7 @@ export interface SearchAddressOptions {
   countryCodes?: string | null;
   /** Biases results towards this `[lat, lng]` without restricting them. */
   near?: [number, number] | null;
+  signal?: AbortSignal;
 }
 
 export interface CepAddress {

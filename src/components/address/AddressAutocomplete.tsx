@@ -41,7 +41,6 @@ export function AddressAutocomplete({
   const [loading, setLoading] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justSelectedRef = useRef(false);
 
   // close on outside click
@@ -54,13 +53,16 @@ export function AddressAutocomplete({
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
+  // Compared by value: callers often pass a new array with the same coordinates
+  const nearLat = near?.[0];
+  const nearLng = near?.[1];
+
   // fetch on value change
   useEffect(() => {
     if (justSelectedRef.current) {
       justSelectedRef.current = false;
       return;
     }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
     const q = value.trim();
     if (q.length < 3) {
       setSuggestions([]);
@@ -68,24 +70,36 @@ export function AddressAutocomplete({
       return;
     }
     setLoading(true);
-    debounceRef.current = setTimeout(async () => {
+    // Cancels the pending search when the text changes, so an older, slower response
+    // can never overwrite the suggestions for what the user typed last
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      const bias: [number, number] | null =
+        nearLat != null && nearLng != null ? [nearLat, nearLng] : null;
       try {
-        const results = await geoService.searchAddress(q, { limit: 6, near });
+        const results = await geoService.searchAddress(q, {
+          limit: 6,
+          near: bias,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
         setSuggestions(
           results.map((r) => ({ display_name: r.displayName, lat: r.lat, lon: r.lon })),
         );
         setHighlight(0);
         setOpen(true);
       } catch {
+        if (controller.signal.aborted) return;
         setSuggestions([]);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }, 350);
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      clearTimeout(timer);
+      controller.abort();
     };
-  }, [value, near]);
+  }, [value, nearLat, nearLng]);
 
   const pick = (s: AddressSuggestion) => {
     justSelectedRef.current = true;

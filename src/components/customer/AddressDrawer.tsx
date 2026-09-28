@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { AddressAutocomplete } from "@/components/address/AddressAutocomplete";
-import { emptyAddress } from "@/components/address/AddressMapPicker";
-import type { AddressValue } from "@/components/address/AddressMapPicker";
+import { emptyAddress } from "@/lib/address";
+import type { AddressValue } from "@/types/address";
 import { geoService } from "@/services/geo.service";
 
 const AddressMapPicker = lazy(() =>
