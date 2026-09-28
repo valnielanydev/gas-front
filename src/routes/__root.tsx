@@ -1,23 +1,28 @@
 import {
   Outlet,
   Link,
-  createRootRoute,
+  createRootRouteWithContext,
   HeadContent,
   Scripts,
   useLocation,
 } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/auth/AuthProvider";
+import { ErrorFallback } from "@/components/common/ErrorFallback";
+import { env } from "@/lib/env";
 import { initSentry, Sentry } from "@/lib/sentry";
 import { reportWebVitals } from "@/lib/vitals";
 import { themeInitScript } from "@/lib/theme";
-import { createQueryClient } from "@/queries/client";
+import type { RouterContext } from "@/router-context";
 
 initSentry();
 
 import appCss from "../styles.css?url";
+
+/** Served from `public/`; absolute when the site URL is known, as crawlers require. */
+const OG_IMAGE_URL = `${env.VITE_SITE_URL ?? ""}/og-image.webp`;
 
 function NotFoundComponent() {
   return (
@@ -41,7 +46,7 @@ function NotFoundComponent() {
   );
 }
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -55,11 +60,6 @@ export const Route = createRootRoute({
       { property: "og:title", content: "VaptGás — Plataforma de Entrega de Gás" },
       { name: "twitter:title", content: "VaptGás — Plataforma de Entrega de Gás" },
       {
-        name: "description",
-        content:
-          "VaptGás conecta revendedoras, motoristas e clientes em uma plataforma de entregas de gás.",
-      },
-      {
         property: "og:description",
         content:
           "VaptGás conecta revendedoras, motoristas e clientes em uma plataforma de entregas de gás.",
@@ -69,16 +69,8 @@ export const Route = createRootRoute({
         content:
           "VaptGás conecta revendedoras, motoristas e clientes em uma plataforma de entregas de gás.",
       },
-      {
-        property: "og:image",
-        content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/XniKcUG9CBUsxxhCJGl6Er2lEwe2/social-images/social-1777386081413-ChatGPT_Image_28_de_abr._de_2026,_11_20_53.webp",
-      },
-      {
-        name: "twitter:image",
-        content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/XniKcUG9CBUsxxhCJGl6Er2lEwe2/social-images/social-1777386081413-ChatGPT_Image_28_de_abr._de_2026,_11_20_53.webp",
-      },
+      { property: "og:image", content: OG_IMAGE_URL },
+      { name: "twitter:image", content: OG_IMAGE_URL },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
@@ -106,26 +98,13 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  const [queryClient] = useState(createQueryClient);
+  const { queryClient } = Route.useRouteContext();
   useEffect(() => {
     reportWebVitals();
   }, []);
   return (
     <Sentry.ErrorBoundary
-      fallback={({ error, resetError }) => (
-        <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-center">
-          <h1 className="text-xl font-bold text-destructive">Algo deu errado</h1>
-          <p className="text-sm text-muted-foreground">
-            {error instanceof Error ? error.message : "Erro inesperado. Tente novamente."}
-          </p>
-          <button
-            onClick={resetError}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-          >
-            Tentar novamente
-          </button>
-        </div>
-      )}
+      fallback={({ error, resetError }) => <ErrorFallback error={error} onRetry={resetError} />}
     >
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
