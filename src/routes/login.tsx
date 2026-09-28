@@ -56,7 +56,7 @@ function LoginPage() {
         toast.info("CPF não cadastrado. Complete o cadastro para continuar.");
         return;
       }
-      await signIn(cpfDigits, password);
+      await signIn({ cpf: cpfDigits, password });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao entrar");
     } finally {
@@ -76,7 +76,7 @@ function LoginPage() {
         phone: onlyDigits(phone) || undefined,
         password,
       });
-      await signIn(cpfDigits, password);
+      await signIn({ cpf: cpfDigits, password });
       toast.success("Conta criada! Bem-vindo ao VaptGás.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao criar conta");
@@ -89,7 +89,7 @@ function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await signIn(staffEmail, staffPassword);
+      await signIn({ identifier: staffEmail, password: staffPassword });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao entrar");
     } finally {

@@ -23,7 +23,7 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as MasterUsersRouteImport } from './routes/master.users'
 import { Route as MasterResellersRouteImport } from './routes/master.resellers'
 import { Route as MasterOrdersRouteImport } from './routes/master.orders'
-import { Route as DriverSignupRouteImport } from './routes/driver.signup'
+import { Route as DriverSignupRouteImport } from './routes/driver_.signup'
 import { Route as DriverProfileRouteImport } from './routes/driver.profile'
 import { Route as DriverDeliveriesRouteImport } from './routes/driver.deliveries'
 import { Route as CustomerProfileRouteImport } from './routes/customer.profile'
@@ -113,9 +113,9 @@ const MasterOrdersRoute = MasterOrdersRouteImport.update({
   getParentRoute: () => MasterRoute,
 } as any)
 const DriverSignupRoute = DriverSignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => DriverRoute,
+  id: '/driver_/signup',
+  path: '/driver/signup',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DriverProfileRoute = DriverProfileRouteImport.update({
   id: '/profile',
@@ -289,7 +289,7 @@ export interface FileRoutesById {
   '/customer/profile': typeof CustomerProfileRouteWithChildren
   '/driver/deliveries': typeof DriverDeliveriesRoute
   '/driver/profile': typeof DriverProfileRoute
-  '/driver/signup': typeof DriverSignupRoute
+  '/driver_/signup': typeof DriverSignupRoute
   '/master/orders': typeof MasterOrdersRoute
   '/master/resellers': typeof MasterResellersRoute
   '/master/users': typeof MasterUsersRoute
@@ -388,7 +388,7 @@ export interface FileRouteTypes {
     | '/customer/profile'
     | '/driver/deliveries'
     | '/driver/profile'
-    | '/driver/signup'
+    | '/driver_/signup'
     | '/master/orders'
     | '/master/resellers'
     | '/master/users'
@@ -415,6 +415,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MasterRoute: typeof MasterRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
+  DriverSignupRoute: typeof DriverSignupRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -517,12 +518,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MasterOrdersRouteImport
       parentRoute: typeof MasterRoute
     }
-    '/driver/signup': {
-      id: '/driver/signup'
-      path: '/signup'
+    '/driver_/signup': {
+      id: '/driver_/signup'
+      path: '/driver/signup'
       fullPath: '/driver/signup'
       preLoaderRoute: typeof DriverSignupRouteImport
-      parentRoute: typeof DriverRoute
+      parentRoute: typeof rootRouteImport
     }
     '/driver/profile': {
       id: '/driver/profile'
@@ -711,14 +712,12 @@ const CustomerRouteWithChildren = CustomerRoute._addFileChildren(
 interface DriverRouteChildren {
   DriverDeliveriesRoute: typeof DriverDeliveriesRoute
   DriverProfileRoute: typeof DriverProfileRoute
-  DriverSignupRoute: typeof DriverSignupRoute
   DriverIndexRoute: typeof DriverIndexRoute
 }
 
 const DriverRouteChildren: DriverRouteChildren = {
   DriverDeliveriesRoute: DriverDeliveriesRoute,
   DriverProfileRoute: DriverProfileRoute,
-  DriverSignupRoute: DriverSignupRoute,
   DriverIndexRoute: DriverIndexRoute,
 }
 
@@ -750,6 +749,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MasterRoute: MasterRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
+  DriverSignupRoute: DriverSignupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

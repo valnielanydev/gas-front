@@ -1,20 +1,12 @@
-import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
-import { RequireRole } from "@/auth/RequireRole";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { requireRole } from "@/auth/guard";
+import { FullScreenLoader } from "@/components/common/FullScreenLoader";
 
 export const Route = createFileRoute("/driver")({
-  component: DriverArea,
+  // Auth lives in the API's cookie, which the SSR server can't see: guard in the browser
+  ssr: false,
+  beforeLoad: requireRole("driver"),
+  // Rendered by SSR and while the guard checks the session
+  pendingComponent: FullScreenLoader,
+  component: Outlet,
 });
-
-/** Invite sign-up is used before the driver has an account, so it stays public. */
-const PUBLIC_PATHS = new Set(["/driver/signup"]);
-
-function DriverArea() {
-  const { pathname } = useLocation();
-  if (PUBLIC_PATHS.has(pathname.replace(/\/$/, ""))) return <Outlet />;
-
-  return (
-    <RequireRole role="driver">
-      <Outlet />
-    </RequireRole>
-  );
-}

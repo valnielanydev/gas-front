@@ -7,7 +7,8 @@ export const authService = {
 
   logout: () => api.post("/auth/logout"),
 
-  me: () => api.get<SessionData>("/auth/me"),
+  /** Answers 401 when logged out, which is not an expired session. */
+  me: () => api.get<SessionData>("/auth/me", { expectsAuthFailure: true }),
 
   checkCpf: (cpf: string) => api.post<{ exists: boolean }>("/auth/check-cpf", { cpf }),
 

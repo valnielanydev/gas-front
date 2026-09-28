@@ -13,27 +13,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { driverService } from "@/services/driver.service";
+import { useDriverInvite, useDriverSignup } from "@/queries/driver.queries";
 import type { InviteReseller } from "@/types/driver";
 import { z } from "zod";
-import { isValidCpf } from "@/lib/cpf";
-import { phoneSchema } from "@/lib/validation";
+import { cpfSchema, fieldErrors, phoneSchema, vehiclePlateSchema } from "@/lib/validation";
 
 const signupSchema = z.object({
   fullName: z.string().min(3, "Nome deve ter ao menos 3 caracteres"),
   phone: phoneSchema,
-  document: z.string().refine(isValidCpf, "CPF inválido"),
+  document: cpfSchema,
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
-  vehiclePlate: z
-    .string()
-    .regex(/^[A-Z]{3}-?[0-9][0-9A-Z][0-9]{2}$/, "Placa inválida (ex: ABC-1234 ou ABC-1D23)"),
+  vehiclePlate: vehiclePlateSchema,
   vehicleType: z.string().min(1, "Selecione o tipo de veículo"),
   vehicleModel: z.string().optional(),
 });
 
 type SignupErrors = Partial<Record<keyof z.infer<typeof signupSchema>, string>>;
 
-export const Route = createFileRoute("/driver/signup")({
+// `driver_` keeps it out of the /driver layout: invite sign-up happens before the
+// driver has an account, so it must stay public
+export const Route = createFileRoute("/driver_/signup")({
   validateSearch: (s: Record<string, unknown>) => ({
     token: typeof s.token === "string" ? s.token : "",
   }),
@@ -44,9 +43,23 @@ function DriverSignupPage() {
   const { token } = Route.useSearch();
   const navigate = useNavigate();
 
-  const [phase, setPhase] = useState<"loading" | "invalid" | "form" | "done">("loading");
-  const [reseller, setReseller] = useState<InviteReseller | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const invite = useDriverInvite(token);
+  const [done, setDone] = useState(false);
+  const reseller: InviteReseller | null = invite.data?.valid ? invite.data.reseller : null;
+  const phase: "loading" | "invalid" | "form" | "done" = done
+    ? "done"
+    : !token || invite.isError
+      ? "invalid"
+      : invite.isPending
+        ? "loading"
+        : reseller
+          ? "form"
+          : "invalid";
+  const signup = useDriverSignup({
+    onSuccess: () => setDone(true),
+    onError: (err) => toast.error(err.message || "Erro ao cadastrar"),
+  });
+  const submitting = signup.isPending;
   const [errors, setErrors] = useState<SignupErrors>({});
 
   const clearError = (field: keyof SignupErrors) =>
@@ -72,31 +85,6 @@ function DriverSignupPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!token) {
-      setPhase("invalid");
-      return;
-    }
-    let cancelled = false;
-    driverService
-      .validateInvite(token)
-      .then((res) => {
-        if (cancelled) return;
-        if (!res.valid) {
-          setPhase("invalid");
-          return;
-        }
-        setReseller(res.reseller);
-        setPhase("form");
-      })
-      .catch(() => {
-        if (!cancelled) setPhase("invalid");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
-
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -111,34 +99,21 @@ function DriverSignupPage() {
     });
 
     if (!result.success) {
-      const fieldErrors: SignupErrors = {};
-      for (const issue of result.error.issues) {
-        const field = issue.path[0] as keyof SignupErrors;
-        if (!fieldErrors[field]) fieldErrors[field] = issue.message;
-      }
-      setErrors(fieldErrors);
+      setErrors(fieldErrors(result.error));
       return;
     }
 
     setErrors({});
-    setSubmitting(true);
-    try {
-      await driverService.signupWithInvite({
-        token,
-        password,
-        fullName,
-        phone,
-        document,
-        vehiclePlate,
-        vehicleType,
-        vehicleModel: vehicleModel || null,
-      });
-      setPhase("done");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao cadastrar");
-    } finally {
-      setSubmitting(false);
-    }
+    signup.mutate({
+      token,
+      password,
+      fullName,
+      phone,
+      document,
+      vehiclePlate,
+      vehicleType,
+      vehicleModel: vehicleModel || null,
+    });
   };
 
   return (

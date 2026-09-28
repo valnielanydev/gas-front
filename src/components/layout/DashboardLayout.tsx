@@ -3,8 +3,6 @@ import type { ReactNode } from "react";
 import { Flame, LogOut, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/auth/AuthProvider";
-import { RequireRole } from "@/auth/RequireRole";
-import type { AppRole } from "@/types/auth";
 import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
@@ -18,18 +16,10 @@ interface DashboardLayoutProps {
   title: string;
   navItems: NavItem[];
   children: ReactNode;
-  requiredRole: AppRole;
 }
 
-export function DashboardLayout({ requiredRole, ...props }: DashboardLayoutProps) {
-  return (
-    <RequireRole role={requiredRole}>
-      <DashboardShell {...props} />
-    </RequireRole>
-  );
-}
-
-function DashboardShell({ title, navItems, children }: Omit<DashboardLayoutProps, "requiredRole">) {
+/** Sidebar shell of the master and reseller areas; access is checked by their routes. */
+export function DashboardLayout({ title, navItems, children }: DashboardLayoutProps) {
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
