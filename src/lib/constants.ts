@@ -1,5 +1,7 @@
+import { env } from "./env";
+
 export function getApiBase(): string {
-  return (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001";
+  return env.VITE_API_URL;
 }
 
 export function fmtMoney(value: number): string {
