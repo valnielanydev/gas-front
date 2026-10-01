@@ -54,6 +54,9 @@ export const customerKeys = {
     [...customerKeys.detail(userId), "driver-metrics", orderIds] as const,
   blockedDrivers: (userId: string | undefined) =>
     [...customerKeys.detail(userId), "blocked-drivers"] as const,
+  addresses: (userId: string | undefined) => [...customerKeys.detail(userId), "addresses"] as const,
+  address: (userId: string | undefined, id: string) =>
+    [...customerKeys.addresses(userId), id] as const,
 };
 
 export const orderKeys = {
