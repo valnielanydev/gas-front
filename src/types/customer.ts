@@ -44,6 +44,7 @@ export type CreateCustomerAddress = {
   number: string;
   complement: string;
   state: string;
+  city: string;
   neighborhood: string;
 };
 
