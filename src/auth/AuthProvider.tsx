@@ -1,16 +1,11 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api } from "@/integrations/api/client";
-
-export type AppRole = "master" | "reseller_admin" | "driver" | "customer";
-
-export interface UserProfile {
-  id: string;
-  fullName: string;
-  email?: string;
-  cpf?: string;
-  phone?: string;
-  address?: string | null;
-}
+import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { setUnauthorizedHandler } from "@/integrations/api/client";
+import { authService } from "@/services/auth.service";
+import { sessionKey, sessionQueryOptions } from "@/auth/session";
+import type { AppRole, LoginPayload, SessionData, UserProfile } from "@/types/auth";
 
 export interface AuthState {
   user: UserProfile | null;
@@ -19,73 +14,80 @@ export interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   hasRole: (role: AppRole) => boolean;
-  signIn: (identifier: string, password: string) => Promise<void>;
+  /** Customers sign in with `{ cpf }`, staff with `{ identifier }` (their e-mail). */
+  signIn: (payload: LoginPayload) => Promise<void>;
   signOut: () => Promise<void>;
-  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
-interface SessionData {
-  user: UserProfile;
-  roles: AppRole[];
-  resellerId?: string | null;
-}
+const NO_ROLES: AppRole[] = [];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [roles, setRoles] = useState<AppRole[]>([]);
-  const [resellerId, setResellerId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const sessionQuery = useQuery(sessionQueryOptions);
+  const session = sessionQuery.data ?? null;
 
-  const applySession = (data: SessionData) => {
-    setUser(data.user);
-    setRoles(data.roles);
-    setResellerId(data.resellerId ?? null);
+  // Read synchronously by the 401 handler, which runs outside React renders
+  const sessionRef = useRef<SessionData | null>(null);
+  sessionRef.current = session;
+
+  /**
+   * Drops every cached query, so the next user never sees the previous one's data, then
+   * stores `next`. The session query itself is kept (only updated) so `useQuery` above
+   * stays subscribed to it and re-renders.
+   */
+  const resetCache = (next: SessionData | null) => {
+    sessionRef.current = next;
+    queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== sessionKey[0] });
+    queryClient.getMutationCache().clear();
+    queryClient.setQueryData(sessionKey, next);
   };
 
   useEffect(() => {
-    api
-      .get<SessionData>("/auth/me")
-      .then(applySession)
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
-  }, []);
+    setUnauthorizedHandler(() => {
+      // Only a session that existed can expire; also dedupes parallel 401s
+      if (!sessionRef.current) return;
+      resetCache(null);
+      toast.info("Sua sessão expirou. Entre novamente.");
+      // Re-runs the route guards, which send the user to /login
+      void router.invalidate();
+    });
+    return () => setUnauthorizedHandler(null);
+    // resetCache only touches a ref and the stable queryClient
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
 
-  const signIn = async (identifier: string, password: string) => {
-    const data = await api.post<SessionData>("/auth/login", { identifier, password });
-    applySession(data);
-  };
+  const value = useMemo<AuthState>(() => {
+    const roles = session?.roles ?? NO_ROLES;
 
-  const signOut = async () => {
-    await api.post("/auth/logout").catch(() => {});
-    setUser(null);
-    setRoles([]);
-    setResellerId(null);
-  };
+    const signIn = async (payload: LoginPayload) => {
+      await authService.login(payload);
+      resetCache(await authService.me());
+    };
 
-  const refresh = async () => {
-    const data = await api.get<SessionData>("/auth/me");
-    applySession(data);
-  };
+    /** Callers navigate away afterwards (the guards would also redirect on the next load). */
+    const signOut = async () => {
+      await authService.logout().catch(() => {});
+      resetCache(null);
+    };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        roles,
-        resellerId,
-        isAuthenticated: !!user,
-        isLoading,
-        hasRole: (r) => roles.includes(r),
-        signIn,
-        signOut,
-        refresh,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+    return {
+      user: session?.user ?? null,
+      roles,
+      resellerId: session?.resellerId ?? null,
+      isAuthenticated: !!session,
+      isLoading: sessionQuery.isPending,
+      hasRole: (r) => roles.includes(r),
+      signIn,
+      signOut,
+    };
+    // resetCache only touches a ref and the stable queryClient
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, sessionQuery.isPending, queryClient]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

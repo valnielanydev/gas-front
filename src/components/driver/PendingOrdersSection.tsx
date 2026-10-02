@@ -1,8 +1,10 @@
 import { Banknote, CircleDot, CreditCard, Loader2, MapPin, Power, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { CustomerDetails, OrderRow } from "@/types/api";
-import { fmtMoney, payLabel } from "@/lib/constants";
+import type { CustomerDetails } from "@/types/driver";
+import type { OrderRow } from "@/types/order";
+import { fmtMoney } from "@/lib/constants";
+import { getPaymentMethodLabel } from "@/lib/order-status";
 
 interface Props {
   isOnline: boolean;
@@ -97,7 +99,8 @@ export function PendingOrdersSection({
                 ) : (
                   <CreditCard className="h-3.5 w-3.5" />
                 )}
-                {payLabel(selectedPending.payment_method)} • {selectedPending.quantity}× botijão
+                {getPaymentMethodLabel(selectedPending.payment_method)} • {selectedPending.quantity}
+                × botijão
               </div>
             </div>
             <div className="flex items-start gap-3 rounded-xl border border-accent/20 bg-accent/10 p-3">
@@ -160,7 +163,7 @@ export function PendingOrdersSection({
                 Pedido disponível
               </div>
               <div className="mt-0.5 text-xs text-muted-foreground">
-                {fmtMoney(o.total_amount)} • {payLabel(o.payment_method)}
+                {fmtMoney(o.total_amount)} • {getPaymentMethodLabel(o.payment_method)}
               </div>
               {distanceLabel(o) && (
                 <div className="mt-0.5 text-xs text-muted-foreground">

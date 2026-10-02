@@ -1,25 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { Building2, Users, ShoppingCart, Truck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/integrations/api/client";
+import { useMasterStats } from "@/queries/admin.queries";
 
 export const Route = createFileRoute("/master/")({
   component: MasterOverview,
 });
 
-interface MasterStats {
-  resellers: number;
-  orders: number;
-  drivers: number;
-  users: number;
-}
-
 function MasterOverview() {
-  const { data: stats } = useQuery({
-    queryKey: ["master-stats"],
-    queryFn: () => api.get<MasterStats>("/admin/stats"),
-  });
+  const { data: stats } = useMasterStats();
 
   const cards = [
     {

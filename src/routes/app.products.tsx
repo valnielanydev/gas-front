@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2, Package, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/common/useConfirm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,62 +25,46 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { api } from "@/integrations/api/client";
+import { useDeleteProduct, useResellerProducts, useSaveProduct } from "@/queries/reseller.queries";
+import type { Product } from "@/types/reseller";
 import { useAuth } from "@/auth/AuthProvider";
+import { fmtMoney } from "@/lib/constants";
 
 export const Route = createFileRoute("/app/products")({
   component: ProductsPage,
 });
 
-interface Product {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  is_available: boolean;
-}
-
 function ProductsPage() {
   const { resellerId } = useAuth();
-  const qc = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState({ name: "", description: "", price: "", is_available: true });
 
-  const { data: products, isLoading } = useQuery({
-    queryKey: ["products", resellerId],
-    enabled: !!resellerId,
-    queryFn: () => api.get<Product[]>(`/resellers/${resellerId}/products`),
-  });
+  const { data: products, isLoading } = useResellerProducts(resellerId);
 
-  const upsertMutation = useMutation({
-    mutationFn: () => {
-      const payload = {
-        name: form.name,
-        description: form.description || null,
-        price: Number(form.price),
-        is_available: form.is_available,
-      };
-      if (editing) {
-        return api.patch(`/products/${editing.id}`, payload);
-      }
-      return api.post(`/resellers/${resellerId}/products`, payload);
-    },
-    onSuccess: () => {
-      toast.success(editing ? "Produto atualizado" : "Produto criado");
-      qc.invalidateQueries({ queryKey: ["products"] });
+  const upsertMutation = useSaveProduct(resellerId, {
+    onSuccess: (_data, { id }) => {
+      toast.success(id ? "Produto atualizado" : "Produto criado");
       setOpen(false);
       reset();
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/products/${id}`),
-    onSuccess: () => {
-      toast.success("Produto removido");
-      qc.invalidateQueries({ queryKey: ["products"] });
-    },
+  const saveProduct = () =>
+    upsertMutation.mutate({
+      id: editing?.id ?? null,
+      payload: {
+        name: form.name,
+        description: form.description || null,
+        price: Number(form.price),
+        is_available: form.is_available,
+      },
+    });
+
+  const deleteMutation = useDeleteProduct(resellerId, {
+    onSuccess: () => toast.success("Produto removido"),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
@@ -168,7 +152,7 @@ function ProductsPage() {
                 Cancelar
               </Button>
               <Button
-                onClick={() => upsertMutation.mutate()}
+                onClick={saveProduct}
                 disabled={!form.name || !form.price || upsertMutation.isPending}
               >
                 {upsertMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -203,7 +187,7 @@ function ProductsPage() {
               {products.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.name}</TableCell>
-                  <TableCell>R$ {Number(p.price).toFixed(2)}</TableCell>
+                  <TableCell>{fmtMoney(Number(p.price))}</TableCell>
                   <TableCell>
                     <Badge variant={p.is_available ? "default" : "secondary"}>
                       {p.is_available ? "Ativo" : "Inativo"}
@@ -216,8 +200,14 @@ function ProductsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => {
-                        if (confirm(`Remover "${p.name}"?`)) deleteMutation.mutate(p.id);
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: `Remover "${p.name}"?`,
+                          description: "O produto deixa de aparecer para os clientes.",
+                          confirmLabel: "Remover",
+                          destructive: true,
+                        });
+                        if (ok) deleteMutation.mutate(p.id);
                       }}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
@@ -229,6 +219,7 @@ function ProductsPage() {
           </Table>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

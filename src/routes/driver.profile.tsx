@@ -1,24 +1,24 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Loader2, LogOut, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { DriverLayout } from "@/components/DriverLayout";
+import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { DriverLayout } from "@/components/layout/DriverLayout";
 import { useAuth } from "@/auth/AuthProvider";
-import { api, ApiError } from "@/integrations/api/client";
+import { ApiError } from "@/integrations/api/client";
+import { useMyDriverProfile, useUpdateMyDriverProfile } from "@/queries/driver.queries";
+import type { DriverProfile } from "@/types/driver";
 import { toast } from "sonner";
 import { z } from "zod";
+import { fieldErrors, optionalPhoneSchema } from "@/lib/validation";
+import { getApprovalStatusLabel } from "@/i18n/ptBR";
 
 const profileSchema = z.object({
-  phone: z.string().refine((v) => {
-    if (!v.trim()) return true;
-    const d = v.replace(/\D/g, "");
-    return d.length >= 10 && d.length <= 11;
-  }, "Telefone inválido — informe DDD + número"),
+  phone: optionalPhoneSchema,
   avatarUrl: z.string().refine((v) => {
     if (!v.trim()) return true;
     try {
@@ -34,88 +34,78 @@ type ProfileErrors = Partial<Record<keyof z.infer<typeof profileSchema>, string>
 
 export const Route = createFileRoute("/driver/profile")({ component: DriverProfilePage });
 
-interface DriverProfile {
-  fullName: string;
-  phone: string;
-  avatarUrl: string;
-  notes: string;
-  additionalInfo: string;
-  approvalStatus: string;
-  resellerName: string;
+function DriverProfilePage() {
+  const { user } = useAuth();
+  const { data, error, refetch, isFetching } = useMyDriverProfile(user?.id);
+
+  if (error) {
+    // No form here: saving an empty form would overwrite the stored data with blanks
+    return (
+      <DriverLayout>
+        <Card>
+          <CardContent className="space-y-3 py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              {error instanceof ApiError ? error.message : "Não foi possível carregar seu perfil."}
+            </p>
+            <Button variant="outline" onClick={() => void refetch()} disabled={isFetching}>
+              {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      </DriverLayout>
+    );
+  }
+
+  if (!data)
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+
+  return <DriverProfileForm profile={data} />;
 }
 
-function DriverProfilePage() {
+function DriverProfileForm({ profile }: { profile: DriverProfile }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<ProfileErrors>({});
-  const [phone, setPhone] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [notes, setNotes] = useState("");
-  const [additionalInfo, setAdditionalInfo] = useState("");
-  const [resellerName, setResellerName] = useState("—");
-  const [approvalStatus, setApprovalStatus] = useState("—");
+  const [phone, setPhone] = useState(profile.phone ?? "");
+  const fullName = profile.fullName ?? "";
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl ?? "");
+  const [notes, setNotes] = useState(profile.notes ?? "");
+  const [additionalInfo, setAdditionalInfo] = useState(profile.additionalInfo ?? "");
+  const resellerName = profile.resellerName ?? "—";
+  const approvalStatus = profile.approvalStatus
+    ? getApprovalStatusLabel(profile.approvalStatus)
+    : "—";
 
-  useEffect(() => {
-    if (!user) return;
-    api
-      .get<DriverProfile>("/drivers/me/profile")
-      .then((data) => {
-        setFullName(data.fullName ?? "");
-        setPhone(data.phone ?? "");
-        setAvatarUrl(data.avatarUrl ?? "");
-        setNotes(data.notes ?? "");
-        setAdditionalInfo(data.additionalInfo ?? "");
-        setApprovalStatus(data.approvalStatus ?? "—");
-        setResellerName(data.resellerName ?? "—");
-      })
-      .catch((err) =>
-        toast.error(err instanceof ApiError ? err.message : "Erro ao carregar perfil"),
-      )
-      .finally(() => setLoading(false));
-  }, [user]);
+  const updateProfile = useUpdateMyDriverProfile(user?.id, {
+    onSuccess: () => toast.success("Perfil atualizado."),
+    onError: (e) => toast.error(e.message || "Erro ao salvar"),
+  });
+  const saving = updateProfile.isPending;
 
-  const onSave = async () => {
+  const onSave = () => {
     const result = profileSchema.safeParse({ phone, avatarUrl });
     if (!result.success) {
-      const fieldErrors: ProfileErrors = {};
-      for (const issue of result.error.issues) {
-        const field = issue.path[0] as keyof ProfileErrors;
-        if (!fieldErrors[field]) fieldErrors[field] = issue.message;
-      }
-      setErrors(fieldErrors);
+      setErrors(fieldErrors(result.error));
       return;
     }
     setErrors({});
-    setSaving(true);
-    try {
-      await api.patch("/drivers/me/profile", {
-        phone: phone.trim() || null,
-        avatarUrl: avatarUrl.trim() || null,
-        notes: notes.trim() || null,
-        additionalInfo: additionalInfo.trim() || null,
-      });
-      toast.success("Perfil atualizado.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
-    } finally {
-      setSaving(false);
-    }
+    updateProfile.mutate({
+      phone: phone.trim() || null,
+      avatarUrl: avatarUrl.trim() || null,
+      notes: notes.trim() || null,
+      additionalInfo: additionalInfo.trim() || null,
+    });
   };
 
   const handleLogout = () => {
     signOut();
     navigate({ to: "/" });
   };
-
-  if (loading)
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
-    );
 
   return (
     <DriverLayout>

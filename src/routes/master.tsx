@@ -1,8 +1,15 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { LayoutDashboard, Building2, Users, ShoppingCart } from "lucide-react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { requireRole } from "@/auth/guard";
+import { FullScreenLoader } from "@/components/common/FullScreenLoader";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
 export const Route = createFileRoute("/master")({
+  // Auth lives in the API's cookie, which the SSR server can't see: guard in the browser
+  ssr: false,
+  beforeLoad: requireRole("master"),
+  // Rendered by SSR and while the guard checks the session
+  pendingComponent: FullScreenLoader,
   component: MasterLayout,
 });
 
@@ -15,7 +22,7 @@ const navItems = [
 
 function MasterLayout() {
   return (
-    <DashboardLayout title="Painel Master" navItems={navItems} requiredRole="master">
+    <DashboardLayout title="Painel Master" navItems={navItems}>
       <Outlet />
     </DashboardLayout>
   );

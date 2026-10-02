@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Shield, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/common/useConfirm";
 import {
   Table,
   TableBody,
@@ -29,71 +29,43 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { api } from "@/integrations/api/client";
+import {
+  useAdminResellers,
+  useAdminUsers,
+  useDemoteFromMaster,
+  useLinkUserToReseller,
+  usePromoteToMaster,
+} from "@/queries/admin.queries";
 import { useAuth } from "@/auth/AuthProvider";
+import { getRoleLabel } from "@/i18n/ptBR";
 
 export const Route = createFileRoute("/master/users")({
   component: UsersPage,
 });
 
-interface UserRow {
-  id: string;
-  full_name: string | null;
-  phone: string | null;
-  roles: string[];
-  reseller_id: string | null;
-  reseller_name: string | null;
-}
-
-interface Reseller {
-  id: string;
-  name: string;
-}
-
 function UsersPage() {
-  const qc = useQueryClient();
   const { user: currentUser } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const [linkOpen, setLinkOpen] = useState<string | null>(null);
   const [linkResellerId, setLinkResellerId] = useState<string>("");
   const [linkRole, setLinkRole] = useState<"reseller_admin" | "driver">("reseller_admin");
 
-  const { data: users, isLoading } = useQuery({
-    queryKey: ["all-users"],
-    queryFn: () => api.get<UserRow[]>("/admin/users"),
-  });
+  const { data: users, isLoading } = useAdminUsers();
+  const { data: resellers } = useAdminResellers({ active: true });
 
-  const { data: resellers } = useQuery({
-    queryKey: ["resellers-list"],
-    queryFn: () => api.get<Reseller[]>("/admin/resellers?active=true"),
-  });
-
-  const promoteMaster = useMutation({
-    mutationFn: (userId: string) => api.post(`/admin/users/${userId}/roles`, { role: "master" }),
-    onSuccess: () => {
-      toast.success("Usuário promovido a Master");
-      qc.invalidateQueries({ queryKey: ["all-users"] });
-    },
+  const promoteMaster = usePromoteToMaster({
+    onSuccess: () => toast.success("Usuário promovido a Master"),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
-  const demoteMaster = useMutation({
-    mutationFn: (userId: string) => api.delete(`/admin/users/${userId}/roles/master`),
-    onSuccess: () => {
-      toast.success("Permissão Master removida");
-      qc.invalidateQueries({ queryKey: ["all-users"] });
-    },
+  const demoteMaster = useDemoteFromMaster({
+    onSuccess: () => toast.success("Permissão Master removida"),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
-  const linkToReseller = useMutation({
-    mutationFn: (userId: string) =>
-      api.post(`/admin/users/${userId}/reseller-link`, {
-        resellerId: linkResellerId,
-        role: linkRole,
-      }),
+  const linkToReseller = useLinkUserToReseller({
     onSuccess: () => {
       toast.success("Vínculo criado");
-      qc.invalidateQueries({ queryKey: ["all-users"] });
       setLinkOpen(null);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
@@ -133,7 +105,7 @@ function UsersPage() {
                     <div className="flex flex-wrap gap-1">
                       {u.roles.map((r) => (
                         <Badge key={r} variant={r === "master" ? "default" : "secondary"}>
-                          {r}
+                          {getRoleLabel(r)}
                         </Badge>
                       ))}
                     </div>
@@ -144,9 +116,13 @@ function UsersPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          if (confirm(`Promover ${u.full_name || "usuário"} a Master?`))
-                            promoteMaster.mutate(u.id);
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: `Promover ${u.full_name || "usuário"} a Master?`,
+                            description: "Ele terá acesso total à plataforma.",
+                            confirmLabel: "Promover",
+                          });
+                          if (ok) promoteMaster.mutate(u.id);
                         }}
                       >
                         <Shield className="mr-1 h-3 w-3" /> Master
@@ -156,9 +132,13 @@ function UsersPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            if (confirm(`Remover permissão Master de ${u.full_name || "usuário"}?`))
-                              demoteMaster.mutate(u.id);
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Remover permissão Master de ${u.full_name || "usuário"}?`,
+                              confirmLabel: "Remover",
+                              destructive: true,
+                            });
+                            if (ok) demoteMaster.mutate(u.id);
                           }}
                         >
                           <ShieldOff className="mr-1 h-3 w-3" /> Despromover
@@ -215,7 +195,13 @@ function UsersPage() {
                           </div>
                           <DialogFooter>
                             <Button
-                              onClick={() => linkToReseller.mutate(u.id)}
+                              onClick={() =>
+                                linkToReseller.mutate({
+                                  userId: u.id,
+                                  resellerId: linkResellerId,
+                                  role: linkRole,
+                                })
+                              }
                               disabled={!linkResellerId || linkToReseller.isPending}
                             >
                               {linkToReseller.isPending && (
@@ -234,6 +220,7 @@ function UsersPage() {
           </Table>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

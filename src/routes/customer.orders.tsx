@@ -1,167 +1,83 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, Package, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { api } from "@/integrations/api/client";
+import {
+  useCustomerOrders,
+  useCustomerRatings,
+  useDriverMetricsForOrders,
+  useOrderDetail,
+} from "@/queries/customer.queries";
 import { useAuth } from "@/auth/AuthProvider";
 import { fmtMoney } from "@/lib/constants";
-import { RatingCard, type DeliveryRating } from "@/components/rating/RatingCard";
-import { getOrderStatusLabel } from "@/i18n/ptBR";
+import { RatingCard } from "@/components/rating/RatingCard";
+import { LoadError } from "@/components/common/LoadError";
+import type { CustomerOrder } from "@/types/order";
+import { getOrderStatusLabel, getPaymentMethodLabel, isOrderActive } from "@/lib/order-status";
 
 export const Route = createFileRoute("/customer/orders")({
   component: MyOrders,
 });
 
-type Row = {
-  id: string;
-  status:
-    | "pending"
-    | "accepted"
-    | "in_delivery"
-    | "delivered"
-    | "cancelled"
-    | "cancelado_pelo_motorista"
-    | "cancelled_by_customer";
-  delivery_address: string;
-  total_amount: number;
-  created_at: string;
-  quantity: number;
-  payment_method: "cash" | "card" | "pix";
-  reseller_id: string;
-  product_id: string;
-};
-
-type OrderDetails = {
-  order: Row;
-  resellerName: string | null;
-  productName: string | null;
-  rating: DeliveryRating | null;
-};
-
-interface OrdersResponse {
-  orders: Row[];
-  hasMore: boolean;
-}
-
-interface OrderDetailResponse {
-  resellerName: string | null;
-  productName: string | null;
-  rating: DeliveryRating | null;
-}
-
-const PAGE_SIZE = 10;
-const TRACKING_STATUSES = new Set<Row["status"]>(["pending", "accepted", "in_delivery"]);
-const STATUS_LABEL: Record<Row["status"], string> = {
-  pending: getOrderStatusLabel("pending"),
-  accepted: getOrderStatusLabel("accepted"),
-  in_delivery: getOrderStatusLabel("in_delivery"),
-  delivered: getOrderStatusLabel("delivered"),
-  cancelled: getOrderStatusLabel("cancelled"),
-  cancelado_pelo_motorista: getOrderStatusLabel("cancelado_pelo_motorista"),
-  cancelled_by_customer: getOrderStatusLabel("cancelled_by_customer"),
-};
-const PAYMENT_LABEL: Record<Row["payment_method"], string> = {
-  cash: "Dinheiro",
-  card: "Cartão",
-  pix: "Pix",
-};
-
 function MyOrders() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [ratingsByOrder, setRatingsByOrder] = useState<Record<string, DeliveryRating>>({});
-  const [driverMetricsByOrder, setDriverMetricsByOrder] = useState<
-    Record<string, { rating: number | null; delivery_time_rating: number | null }>
-  >({});
-  const [selectedOrder, setSelectedOrder] = useState<OrderDetails | null>(null);
-  const [loadingOrderDetails, setLoadingOrderDetails] = useState(false);
+  const {
+    items: rows,
+    hasMore,
+    loadMore,
+    isLoadingMore,
+    isError,
+    retry,
+    isRetrying,
+  } = useCustomerOrders(user?.id);
 
-  const fetchOrders = async (nextOffset: number, append: boolean) => {
-    if (!user) return;
-    const data = await api.get<OrdersResponse>(
-      `/customers/me/orders?limit=${PAGE_SIZE}&offset=${nextOffset}`,
-    );
-    const incoming = data.orders ?? [];
-    setRows((prev) => {
-      if (!append || !prev) return incoming;
-      const deduped = incoming.filter((row) => !prev.some((existing) => existing.id === row.id));
-      return [...prev, ...deduped];
-    });
-    setOffset(nextOffset + incoming.length);
-    setHasMore(data.hasMore ?? incoming.length === PAGE_SIZE);
-  };
+  const orderIds = useMemo(() => rows?.map((o) => o.id) ?? [], [rows]);
+  const deliveredIds = useMemo(
+    () => rows?.filter((o) => o.status === "delivered").map((o) => o.id) ?? [],
+    [rows],
+  );
+  const { data: ratingsByOrder = {} } = useCustomerRatings(user?.id, deliveredIds);
+  const { data: driverMetricsByOrder = {} } = useDriverMetricsForOrders(user?.id, orderIds);
 
-  useEffect(() => {
-    if (!user) return;
-    setRows(null);
-    setOffset(0);
-    setHasMore(true);
-    fetchOrders(0, false).catch(() => setRows([]));
-  }, [user]);
+  const [clickedOrder, setClickedOrder] = useState<CustomerOrder | null>(null);
+  const detail = useOrderDetail(clickedOrder?.id ?? null);
+  const loadingOrderDetails = !!clickedOrder && detail.isPending;
+  // On a failed detail request the drawer still opens, with what the list already knows
+  const selectedOrder =
+    clickedOrder && !loadingOrderDetails
+      ? {
+          order: clickedOrder,
+          productName: detail.data?.productName ?? null,
+          resellerName: detail.data?.resellerName ?? null,
+          rating: detail.data?.rating ?? ratingsByOrder[clickedOrder.id] ?? null,
+        }
+      : null;
+  const closeDetails = () => setClickedOrder(null);
 
-  useEffect(() => {
-    if (!rows?.length) return;
-    const deliveredIds = rows.filter((o) => o.status === "delivered").map((o) => o.id);
-    if (!deliveredIds.length) return;
-    api
-      .post<Record<string, DeliveryRating>>("/customers/me/ratings", { orderIds: deliveredIds })
-      .then((mapped) => setRatingsByOrder((prev) => ({ ...prev, ...mapped })))
-      .catch(() => {});
-  }, [rows]);
-
-  useEffect(() => {
-    if (!rows?.length) return;
-    const ids = rows.map((o) => o.id);
-    api
-      .post<Record<string, { rating: number | null; delivery_time_rating: number | null }>>(
-        "/customers/me/driver-metrics",
-        { orderIds: ids },
-      )
-      .then((entries) => setDriverMetricsByOrder((prev) => ({ ...prev, ...entries })))
-      .catch(() => {});
-  }, [rows]);
-
-  const handleOrderClick = async (order: Row) => {
-    if (TRACKING_STATUSES.has(order.status)) {
+  const handleOrderClick = (order: CustomerOrder) => {
+    if (isOrderActive(order.status)) {
       navigate({ to: "/customer/order/$orderId", params: { orderId: order.id } });
       return;
     }
-    setLoadingOrderDetails(true);
-    setSelectedOrder(null);
-    try {
-      const detail = await api.get<OrderDetailResponse>(`/orders/${order.id}/detail`);
-      setSelectedOrder({
-        order,
-        productName: detail.productName ?? null,
-        resellerName: detail.resellerName ?? null,
-        rating: detail.rating ?? ratingsByOrder[order.id] ?? null,
-      });
-    } catch {
-      setSelectedOrder({
-        order,
-        productName: null,
-        resellerName: null,
-        rating: ratingsByOrder[order.id] ?? null,
-      });
-    } finally {
-      setLoadingOrderDetails(false);
-    }
+    setClickedOrder(order);
   };
-
-  const canLoadMore = useMemo(() => !!rows?.length && hasMore, [rows, hasMore]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-3 p-4 pb-24">
       <h1 className="text-lg font-bold">Meus pedidos</h1>
 
-      {rows === null && (
+      {isError && (
+        <LoadError
+          message="Não foi possível carregar seus pedidos."
+          onRetry={retry}
+          retrying={isRetrying}
+        />
+      )}
+      {rows === null && !isError && (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
@@ -190,7 +106,7 @@ function MyOrders() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">{fmtMoney(o.total_amount)}</span>
                     <Badge variant="outline" className="text-[10px]">
-                      {STATUS_LABEL[o.status]}
+                      {getOrderStatusLabel(o.status)}
                     </Badge>
                   </div>
                   <div className="truncate text-xs text-muted-foreground">{o.delivery_address}</div>
@@ -219,17 +135,13 @@ function MyOrders() {
         </button>
       ))}
 
-      {canLoadMore && (
+      {hasMore && (
         <Button
           type="button"
           variant="outline"
           className="w-full"
           disabled={isLoadingMore}
-          onClick={async () => {
-            setIsLoadingMore(true);
-            await fetchOrders(offset, true).catch(() => {});
-            setIsLoadingMore(false);
-          }}
+          onClick={loadMore}
         >
           {isLoadingMore ? "Carregando..." : "Carregar mais pedidos"}
         </Button>
@@ -238,7 +150,7 @@ function MyOrders() {
       <Drawer
         snapPoints={[0.5, 0.88]}
         open={loadingOrderDetails || !!selectedOrder}
-        onOpenChange={(open) => !open && setSelectedOrder(null)}
+        onOpenChange={(open) => !open && closeDetails()}
       >
         <DrawerContent className="max-h-[88dvh]">
           <DrawerHeader className="text-left">
@@ -266,7 +178,7 @@ function MyOrders() {
                 </p>
                 <p>
                   <strong>Forma de pagamento:</strong>{" "}
-                  {PAYMENT_LABEL[selectedOrder.order.payment_method]}
+                  {getPaymentMethodLabel(selectedOrder.order.payment_method)}
                 </p>
                 <p>
                   <strong>Revendedora:</strong> {selectedOrder.resellerName ?? "—"}
@@ -288,13 +200,6 @@ function MyOrders() {
                       existingRating={selectedOrder.rating}
                       expectedEvaluatorRole="customer"
                       allowEdit
-                      onSaved={(rating) => {
-                        setRatingsByOrder((prev) => ({
-                          ...prev,
-                          [selectedOrder.order.id]: rating,
-                        }));
-                        setSelectedOrder((prev) => (prev ? { ...prev, rating } : prev));
-                      }}
                       title="Editar avaliação"
                     />
                   </div>
@@ -303,7 +208,7 @@ function MyOrders() {
                   type="button"
                   variant="secondary"
                   className="mt-2 w-full"
-                  onClick={() => setSelectedOrder(null)}
+                  onClick={closeDetails}
                 >
                   Fechar
                 </Button>

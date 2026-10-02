@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { useLeafletMap } from "@/hooks/useLeafletMap";
-import type { Coords, FullOrder } from "@/types/api";
-import { haversineKm, formatEta } from "@/lib/distance";
+import { useDrivingRoute, useTripMarkers } from "@/hooks/useTripMap";
+import type { Coords } from "@/types/common";
+import type { FullOrder } from "@/types/order";
 import { SPEED_KMH } from "@/lib/constants";
+import { isOrderFinished } from "@/lib/order-status";
 
 interface Props {
   open: boolean;
@@ -14,13 +16,6 @@ interface Props {
   onRouteUpdate: (distanceKm: number, etaMin: number) => void;
 }
 
-const INACTIVE_STATUSES = new Set([
-  "delivered",
-  "cancelled",
-  "cancelado_pelo_motorista",
-  "cancelled_by_customer",
-]);
-
 export function OrderTrackingMapDrawer({
   open,
   onOpenChange,
@@ -29,126 +24,22 @@ export function OrderTrackingMapDrawer({
   driverCoords,
   onRouteUpdate,
 }: Props) {
-  const [routeFreshAt, setRouteFreshAt] = useState<number | null>(null);
+  const map = useLeafletMap({ enabled: open && !!customerCoords });
+  const { mapEl } = map;
+  useTripMarkers(map, driverCoords, customerCoords, { centerOnCustomer: true });
+  const { route } = useDrivingRoute(map, driverCoords, customerCoords, {
+    fallbackKmh: SPEED_KMH.osrmFallback,
+  });
+  const routeFreshAt = route && !route.isEstimate ? route.updatedAt : null;
 
-  const { mapEl, mapRef, L, driverMarkerRef, customerMarkerRef, routeLineRef, isReady } =
-    useLeafletMap({ enabled: open && !!customerCoords });
-
+  const onRouteUpdateRef = useRef(onRouteUpdate);
+  onRouteUpdateRef.current = onRouteUpdate;
   useEffect(() => {
-    if (!isReady || !L.current || !mapRef.current || !customerCoords) return;
-    const leaflet = L.current;
-    const map = mapRef.current;
+    if (route)
+      onRouteUpdateRef.current(route.distanceKm, Math.max(1, Math.round(route.durationMin)));
+  }, [route]);
 
-    const customerIcon = leaflet.divIcon({
-      html: '<div style="font-size:20px;line-height:1">📍</div>',
-      className: "map-emoji-icon",
-      iconSize: [24, 24],
-      iconAnchor: [12, 24],
-    });
-    const driverIcon = leaflet.divIcon({
-      html: '<div style="font-size:20px;line-height:1">🏍️</div>',
-      className: "map-emoji-icon",
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    });
-
-    if (!customerMarkerRef.current) {
-      customerMarkerRef.current = leaflet
-        .marker([customerCoords.lat, customerCoords.lng], { icon: customerIcon })
-        .addTo(map);
-    } else {
-      customerMarkerRef.current.setLatLng([customerCoords.lat, customerCoords.lng]);
-    }
-
-    if (driverCoords) {
-      if (!driverMarkerRef.current) {
-        driverMarkerRef.current = leaflet
-          .marker([driverCoords.lat, driverCoords.lng], { icon: driverIcon })
-          .addTo(map);
-      } else {
-        driverMarkerRef.current.setLatLng([driverCoords.lat, driverCoords.lng]);
-      }
-      map.fitBounds(
-        leaflet.latLngBounds([
-          [customerCoords.lat, customerCoords.lng],
-          [driverCoords.lat, driverCoords.lng],
-        ]),
-        { padding: [24, 24] },
-      );
-    } else {
-      map.setView([customerCoords.lat, customerCoords.lng], 15);
-    }
-  }, [
-    isReady,
-    customerCoords?.lat,
-    customerCoords?.lng,
-    driverCoords?.lat,
-    driverCoords?.lng,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    L,
-    mapRef,
-    driverMarkerRef,
-    customerMarkerRef,
-  ]);
-
-  useEffect(() => {
-    if (!isReady || !driverCoords || !customerCoords || !mapRef.current || !L.current) return;
-    let cancelled = false;
-    const fetchRoute = async () => {
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${driverCoords.lng},${driverCoords.lat};${customerCoords.lng},${customerCoords.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = (await res.json()) as {
-          routes?: Array<{
-            geometry: { coordinates: [number, number][] };
-            distance: number;
-            duration: number;
-          }>;
-        };
-        const route = data?.routes?.[0];
-        if (!route || cancelled) throw new Error("no-route");
-        const coords = route.geometry.coordinates.map(
-          ([lng, lat]) => [lat, lng] as [number, number],
-        );
-        const leaflet = L.current;
-        if (!leaflet) return;
-        if (routeLineRef.current) {
-          routeLineRef.current.setLatLngs(coords);
-        } else {
-          routeLineRef.current = leaflet
-            .polyline(coords, { color: "#2563eb", weight: 5 })
-            .addTo(mapRef.current!);
-        }
-        onRouteUpdate(
-          Number(route.distance) / 1000,
-          Math.max(1, Math.round(Number(route.duration) / 60)),
-        );
-        setRouteFreshAt(Date.now());
-      } catch {
-        const km = haversineKm(driverCoords, customerCoords);
-        onRouteUpdate(km, Math.max(1, Math.round((km / SPEED_KMH.osrmFallback) * 60)));
-      }
-    };
-    fetchRoute();
-    const id = window.setInterval(fetchRoute, 10_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [
-    isReady,
-    driverCoords?.lat,
-    driverCoords?.lng,
-    customerCoords?.lat,
-    customerCoords?.lng,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    L,
-    mapRef,
-    routeLineRef,
-    onRouteUpdate,
-  ]);
-
-  const isActive = !INACTIVE_STATUSES.has(order.status);
+  const isActive = !isOrderFinished(order.status);
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>

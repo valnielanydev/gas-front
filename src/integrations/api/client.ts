@@ -7,6 +7,18 @@ type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 interface RequestOptions {
   body?: unknown;
   signal?: AbortSignal;
+  /**
+   * The endpoint answers 401 for bad credentials (login, current password check), not
+   * for an expired session, so the global unauthorized handler must not run.
+   */
+  expectsAuthFailure?: boolean;
+}
+
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Registers what to do when any request fails with 401 (expired or revoked session). */
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
 }
 
 export class ApiError extends Error {
@@ -20,23 +32,35 @@ export class ApiError extends Error {
   }
 }
 
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function request<T>(
   method: HttpMethod,
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { body, signal } = options;
+  const { body, signal, expectsAuthFailure } = options;
   const url = `${getApiBase()}${path.startsWith("/") ? path : `/${path}`}`;
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (method !== "GET") {
+    const csrf = getCsrfToken();
+    if (csrf) headers["x-csrf-token"] = csrf;
+  }
 
   const res = await fetch(url, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
     credentials: "include",
     signal: signal ?? AbortSignal.timeout(10_000),
   });
 
   if (!res.ok) {
+    if (res.status === 401 && !expectsAuthFailure) unauthorizedHandler?.();
     let errorBody: unknown;
     try {
       errorBody = await res.json();

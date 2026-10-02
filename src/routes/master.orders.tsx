@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { Loader2, ShoppingCart } from "lucide-react";
 import {
   Table,
@@ -9,47 +8,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { api } from "@/integrations/api/client";
+import { useAdminOrders } from "@/queries/admin.queries";
 import { fmtMoney } from "@/lib/constants";
 import { format } from "date-fns";
-import { getOrderStatusLabel } from "@/i18n/ptBR";
+import { OrderStatusBadge } from "@/components/order/OrderStatusBadge";
 import { ptBR } from "date-fns/locale";
 
 export const Route = createFileRoute("/master/orders")({
   component: OrdersPage,
 });
 
-interface Order {
-  id: string;
-  created_at: string;
-  status: string;
-  total_amount: number;
-  quantity: number;
-  reseller?: { name: string } | null;
-  product?: { name: string } | null;
-}
-
-const statusLabels: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  pending: { label: getOrderStatusLabel("pending"), variant: "outline" },
-  accepted: { label: getOrderStatusLabel("accepted"), variant: "secondary" },
-  in_delivery: { label: getOrderStatusLabel("in_delivery"), variant: "default" },
-  delivered: { label: getOrderStatusLabel("delivered"), variant: "default" },
-  cancelled: { label: getOrderStatusLabel("cancelled"), variant: "destructive" },
-  cancelado_pelo_motorista: {
-    label: getOrderStatusLabel("cancelado_pelo_motorista"),
-    variant: "destructive",
-  },
-};
-
 function OrdersPage() {
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ["all-orders"],
-    queryFn: () => api.get<Order[]>("/admin/orders?limit=100"),
-  });
+  const { data: orders, isLoading } = useAdminOrders(100);
 
   return (
     <div className="space-y-6">
@@ -90,9 +60,7 @@ function OrdersPage() {
                   </TableCell>
                   <TableCell>{fmtMoney(Number(o.total_amount))}</TableCell>
                   <TableCell>
-                    <Badge variant={statusLabels[o.status]?.variant ?? "outline"}>
-                      {statusLabels[o.status]?.label ?? o.status}
-                    </Badge>
+                    <OrderStatusBadge status={o.status} />
                   </TableCell>
                 </TableRow>
               ))}

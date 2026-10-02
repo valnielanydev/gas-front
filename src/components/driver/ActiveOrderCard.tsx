@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
 import { Banknote, CheckCircle2, CreditCard, Loader2, MapPin, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLeafletMap } from "@/hooks/useLeafletMap";
-import type { Coords, OrderRow } from "@/types/api";
-import { fmtMoney, payLabel, SPEED_KMH } from "@/lib/constants";
-import { formatKm, haversineKm } from "@/lib/distance";
+import { useDrivingRoute, useTripMarkers } from "@/hooks/useTripMap";
+import type { Coords } from "@/types/common";
+import type { OrderRow } from "@/types/order";
+import { fmtMoney, SPEED_KMH } from "@/lib/constants";
+import { getPaymentMethodLabel, isDriverAssigned } from "@/lib/order-status";
+import { formatKm } from "@/lib/distance";
+import { useConfirm } from "@/components/common/useConfirm";
 
 interface Props {
   order: OrderRow;
@@ -33,133 +36,16 @@ export function ActiveOrderCard({
   onOpenComplete,
   onCancel,
 }: Props) {
-  const [routeInfo, setRouteInfo] = useState<{
-    distanceKm: number;
-    durationMin: number;
-  } | null>(null);
-  const [routingLoading, setRoutingLoading] = useState(false);
-
-  const { mapEl, mapRef, L, driverMarkerRef, customerMarkerRef, routeLineRef, isReady } =
-    useLeafletMap({ enabled: true });
-
-  useEffect(() => {
-    if (!isReady || !L.current || !mapRef.current) return;
-    const leaflet = L.current;
-    const map = mapRef.current;
-
-    const driverIcon = leaflet.divIcon({
-      html: '<div style="font-size:20px;line-height:1">🏍️</div>',
-      className: "map-emoji-icon",
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    });
-    const customerIcon = leaflet.divIcon({
-      html: '<div style="font-size:20px;line-height:1">📍</div>',
-      className: "map-emoji-icon",
-      iconSize: [24, 24],
-      iconAnchor: [12, 24],
-    });
-
-    if (driverCoords) {
-      if (!driverMarkerRef.current) {
-        driverMarkerRef.current = leaflet
-          .marker([driverCoords.lat, driverCoords.lng], { icon: driverIcon })
-          .addTo(map);
-      } else {
-        driverMarkerRef.current.setLatLng([driverCoords.lat, driverCoords.lng]);
-      }
-    }
-
-    if (customerCoords) {
-      if (!customerMarkerRef.current) {
-        customerMarkerRef.current = leaflet
-          .marker([customerCoords.lat, customerCoords.lng], { icon: customerIcon })
-          .addTo(map);
-      } else {
-        customerMarkerRef.current.setLatLng([customerCoords.lat, customerCoords.lng]);
-      }
-    }
-
-    if (driverCoords && customerCoords) {
-      map.fitBounds(
-        leaflet.latLngBounds([
-          [driverCoords.lat, driverCoords.lng],
-          [customerCoords.lat, customerCoords.lng],
-        ]),
-        { padding: [24, 24] },
-      );
-    }
-  }, [
-    isReady,
-    driverCoords?.lat,
-    driverCoords?.lng,
-    customerCoords?.lat,
-    customerCoords?.lng,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    L,
-    mapRef,
-    driverMarkerRef,
-    customerMarkerRef,
-  ]);
-
-  useEffect(() => {
-    if (!isReady || !driverCoords || !customerCoords || !mapRef.current || !L.current) return;
-    let cancelled = false;
-    const fetchRoute = async () => {
-      const map = mapRef.current;
-      if (!map) return;
-      setRoutingLoading(true);
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${driverCoords.lng},${driverCoords.lat};${customerCoords.lng},${customerCoords.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-        const route = data?.routes?.[0];
-        if (!route || cancelled) return;
-        const leaflet = L.current;
-        if (!leaflet) return;
-        const coords = (route.geometry.coordinates as [number, number][]).map(
-          ([lng, lat]) => [lat, lng] as [number, number],
-        );
-        if (routeLineRef.current) {
-          routeLineRef.current.setLatLngs(coords);
-        } else {
-          routeLineRef.current = leaflet
-            .polyline(coords, { color: "#2563eb", weight: 5 })
-            .addTo(map);
-        }
-        const routeLine = routeLineRef.current;
-        if (routeLine) map.fitBounds(routeLine.getBounds(), { padding: [24, 24] });
-        setRouteInfo({
-          distanceKm: Number(route.distance) / 1000,
-          durationMin: Number(route.duration) / 60,
-        });
-      } catch {
-        const km = haversineKm(driverCoords, customerCoords);
-        setRouteInfo({
-          distanceKm: km,
-          durationMin: Math.max(1, (km / SPEED_KMH.driverFallback) * 60),
-        });
-      } finally {
-        if (!cancelled) setRoutingLoading(false);
-      }
-    };
-    fetchRoute();
-    const intervalId = window.setInterval(fetchRoute, 10_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [
-    isReady,
-    driverCoords?.lat,
-    driverCoords?.lng,
-    customerCoords?.lat,
-    customerCoords?.lng,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    L,
-    mapRef,
-    routeLineRef,
-  ]);
+  const { confirm, confirmDialog } = useConfirm();
+  const map = useLeafletMap({ enabled: true });
+  const { mapEl } = map;
+  useTripMarkers(map, driverCoords, customerCoords);
+  const { route: routeInfo, loading: routingLoading } = useDrivingRoute(
+    map,
+    driverCoords,
+    customerCoords,
+    { fallbackKmh: SPEED_KMH.driverFallback, fitToRoute: true },
+  );
 
   return (
     <Card className="overflow-hidden border-primary/40 shadow-[var(--shadow-card)]">
@@ -182,7 +68,8 @@ export function ActiveOrderCard({
             ) : (
               <CreditCard className="h-3.5 w-3.5" />
             )}
-            {payLabel(order.payment_method)} • {order.quantity}× {fmtMoney(order.unit_price)}
+            {getPaymentMethodLabel(order.payment_method)} • {order.quantity}×{" "}
+            {fmtMoney(order.unit_price)}
           </div>
         </div>
 
@@ -282,13 +169,29 @@ export function ActiveOrderCard({
           </Button>
         )}
 
-        {(order.status === "accepted" || order.status === "in_delivery") && (
-          <Button variant="outline" className="w-full" onClick={onCancel} disabled={cancelling}>
+        {isDriverAssigned(order.status) && (
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={cancelling}
+            onClick={async () => {
+              const ok = await confirm({
+                title: "Cancelar esta entrega?",
+                description:
+                  "O pedido será cancelado e o cliente verá que foi cancelado pelo motorista.",
+                confirmLabel: "Cancelar entrega",
+                cancelLabel: "Voltar",
+                destructive: true,
+              });
+              if (ok) onCancel();
+            }}
+          >
             {cancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Cancelar entrega
           </Button>
         )}
       </CardContent>
+      {confirmDialog}
     </Card>
   );
 }

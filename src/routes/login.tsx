@@ -1,13 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { Flame, Loader2, ShieldCheck, Store, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useAuth } from "@/auth/AuthProvider";
+import { homePathForRoles } from "@/auth/roles";
+import { authService } from "@/services/auth.service";
 import { formatCpf, isValidCpf } from "@/lib/cpf";
+import { onlyDigits } from "@/lib/utils";
+import { FlameMark } from "@/components/login/FlameMark";
+import { ClientStep } from "@/components/login/ClientStep";
+import { SignupStep } from "@/components/login/SignupStep";
+import { StaffStep } from "@/components/login/StaffStep";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -15,10 +17,10 @@ export const Route = createFileRoute("/login")({
 
 export default LoginPage;
 
-type Step = "client" | "staff";
+type Step = "client" | "signup" | "staff";
 
 function LoginPage() {
-  const { signIn, isAuthenticated, isLoading, hasRole } = useAuth();
+  const { signIn, isAuthenticated, isLoading, roles } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>("client");
@@ -26,31 +28,58 @@ function LoginPage() {
 
   const [cpf, setCpf] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [staffRole, setStaffRole] = useState<"rev" | "admin">("rev");
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
 
   const [staffEmail, setStaffEmail] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
+  const [showStaffPassword, setShowStaffPassword] = useState(false);
 
   useEffect(() => {
     if (isLoading || !isAuthenticated) return;
-    if (hasRole("master")) navigate({ to: "/master", replace: true });
-    else if (hasRole("reseller_admin")) navigate({ to: "/app", replace: true });
-    else if (hasRole("driver")) navigate({ to: "/driver", replace: true });
-    else navigate({ to: "/customer", replace: true });
-  }, [hasRole, isAuthenticated, isLoading, navigate]);
+    navigate({ to: homePathForRoles(roles), replace: true });
+  }, [roles, isAuthenticated, isLoading, navigate]);
 
   const onSubmitClient = async (e: FormEvent) => {
     e.preventDefault();
     if (!isValidCpf(cpf) || !password) return;
     setLoading(true);
+    const cpfDigits = onlyDigits(cpf);
     try {
-      await signIn(cpf.replace(/\D/g, ""), password);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro ao entrar";
-      if (msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("inválid")) {
-        toast.error("CPF ou senha inválidos");
-      } else {
-        toast.error(msg);
+      const res = await authService.checkCpf(cpfDigits);
+      if (!res.exists) {
+        setStep("signup");
+        toast.info("CPF não cadastrado. Complete o cadastro para continuar.");
+        return;
       }
+      await signIn({ cpf: cpfDigits, password });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao entrar");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onSubmitSignup = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const cpfDigits = onlyDigits(cpf);
+    try {
+      await authService.register({
+        cpf: cpfDigits,
+        name,
+        email,
+        phone: onlyDigits(phone) || undefined,
+        password,
+      });
+      await signIn({ cpf: cpfDigits, password });
+      toast.success("Conta criada! Bem-vindo ao VaptGás.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao criar conta");
     } finally {
       setLoading(false);
     }
@@ -60,136 +89,78 @@ function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await signIn(staffEmail, staffPassword);
+      await signIn({ identifier: staffEmail, password: staffPassword });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro ao entrar";
-      if (msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("inválid")) {
-        toast.error("E-mail ou senha inválidos");
-      } else {
-        toast.error(msg);
-      }
+      toast.error(err instanceof Error ? err.message : "Erro ao entrar");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,#0f172a,#0ea5a4)] px-4 py-10">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-md items-center justify-center">
-        <Card className="w-full rounded-2xl border-white/20 bg-white/95 shadow-2xl dark:bg-[#020617]/90">
-          <CardHeader className="space-y-4 text-center">
-            <Link to="/" className="mx-auto flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg">
-                <Flame className="h-6 w-6" />
-              </span>
-              <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                VaptGás
-              </span>
-            </Link>
-            <div>
-              <CardTitle>{step === "staff" ? "Acesso administrativo" : "Entrar"}</CardTitle>
-              <CardDescription>
-                {step === "staff" ? "Para revendedoras e admins" : "Entre com CPF e senha"}
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {step === "client" && (
-              <form onSubmit={onSubmitClient} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="cpf">CPF</Label>
-                  <Input
-                    id="cpf"
-                    required
-                    value={cpf}
-                    onChange={(e) => setCpf(formatCpf(e.target.value))}
-                    placeholder="000.000.000-00"
-                    autoComplete="username"
-                    className="rounded-xl border-white/20 bg-white/70 text-center text-lg tracking-wider dark:bg-white/10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    className="rounded-xl border-white/20 bg-white/70 dark:bg-white/10"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  disabled={loading || !isValidCpf(cpf)}
-                  className="h-11 w-full rounded-xl bg-blue-700 hover:bg-blue-600"
-                >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Entrar
-                </Button>
-                <div className="grid gap-2 pt-2 sm:grid-cols-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-xl border-white/40 bg-white/40 dark:bg-white/5"
-                    onClick={() => setStep("staff")}
-                  >
-                    <Store className="mr-2 h-4 w-4" />
-                    Sou revendedora
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-xl border-white/40 bg-white/40 dark:bg-white/5"
-                    onClick={() => setStep("staff")}
-                  >
-                    <ShieldCheck className="mr-2 h-4 w-4" />
-                    Sou admin
-                  </Button>
-                </div>
-              </form>
-            )}
+    <div className="flex min-h-svh flex-col px-6 bg-[radial-gradient(120%_60%_at_50%_-8%,#0f2a5e_0%,#0f172a_38%,#020617_100%)] text-slate-200 antialiased [font-family:-apple-system,system-ui,sans-serif]">
+      <div className="h-14" />
 
-            {step === "staff" && (
-              <form onSubmit={onSubmitStaff} className="space-y-4">
-                <button
-                  type="button"
-                  onClick={() => setStep("client")}
-                  className="mb-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <ArrowLeft className="h-3 w-3" />
-                  Voltar
-                </button>
-                <div className="space-y-2">
-                  <Label htmlFor="semail">E-mail</Label>
-                  <Input
-                    id="semail"
-                    type="email"
-                    required
-                    value={staffEmail}
-                    onChange={(e) => setStaffEmail(e.target.value)}
-                    autoComplete="email"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="spass">Senha</Label>
-                  <Input
-                    id="spass"
-                    type="password"
-                    required
-                    value={staffPassword}
-                    onChange={(e) => setStaffPassword(e.target.value)}
-                    autoComplete="current-password"
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Entrar
-                </Button>
-              </form>
-            )}
-          </CardContent>
-        </Card>
+      <div className="mb-8 flex flex-col items-center gap-4">
+        <Link to="/">
+          <FlameMark size={68} />
+        </Link>
+        <div className="text-center">
+          <div className="text-[27px] font-extrabold tracking-tight">
+            Vapt<span className="text-sky-400">Gás</span>
+          </div>
+          <div className="mt-1 text-sm font-medium text-slate-400">Seu gás, num toque</div>
+        </div>
       </div>
+
+      {step === "client" && (
+        <ClientStep
+          cpf={cpf}
+          onCpfChange={(v) => setCpf(formatCpf(v))}
+          password={password}
+          onPasswordChange={setPassword}
+          showPassword={showPassword}
+          onTogglePassword={() => setShowPassword((s) => !s)}
+          loading={loading}
+          ready={isValidCpf(cpf) && password.length >= 4}
+          onSubmit={onSubmitClient}
+          onSelectRole={(role) => {
+            setStaffRole(role);
+            setStep("staff");
+          }}
+        />
+      )}
+
+      {step === "signup" && (
+        <SignupStep
+          name={name}
+          onNameChange={setName}
+          email={email}
+          onEmailChange={setEmail}
+          phone={phone}
+          onPhoneChange={setPhone}
+          loading={loading}
+          ready={name.length > 0 && email.length > 0}
+          onSubmit={onSubmitSignup}
+          onBack={() => setStep("client")}
+        />
+      )}
+
+      {step === "staff" && (
+        <StaffStep
+          role={staffRole}
+          email={staffEmail}
+          onEmailChange={setStaffEmail}
+          password={staffPassword}
+          onPasswordChange={setStaffPassword}
+          showPassword={showStaffPassword}
+          onTogglePassword={() => setShowStaffPassword((s) => !s)}
+          loading={loading}
+          ready={staffEmail.length > 0 && staffPassword.length >= 4}
+          onSubmit={onSubmitStaff}
+          onBack={() => setStep("client")}
+        />
+      )}
     </div>
   );
 }
