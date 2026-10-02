@@ -7,9 +7,9 @@ import { useInvalidatingMutation, type MutationHookOptions } from "./mutation";
 import { useOffsetPagination } from "./pagination";
 import type { CreateCustomerAddress, UpdateCustomerProfilePayload } from "@/types/customer";
 import {
-  customerAdressesService,
-  UpdateCustomerAddressDTO,
-} from "../services/customer-addresses.service";
+  customerAddressesService,
+  type UpdateCustomerAddressDTO,
+} from "@/services/customer-addresses.service";
 
 export const CUSTOMER_ORDERS_PAGE_SIZE = 10;
 
@@ -117,14 +117,14 @@ export function useCustomerAddresses(userId: string | undefined) {
   return useQuery({
     queryKey: customerKeys.addresses(userId),
     enabled: !!userId,
-    queryFn: () => customerAdressesService.findCustomerAdresses(),
+    queryFn: () => customerAddressesService.findCustomerAddresses(),
   });
 }
 
 export function useCustomerAddressById(userId: string | undefined, id: string) {
   return useQuery({
     queryKey: customerKeys.address(userId, id),
-    queryFn: () => customerAdressesService.findById(id),
+    queryFn: () => customerAddressesService.findById(id),
     enabled: !!userId && !!id,
   });
 }
@@ -132,14 +132,14 @@ export function useCustomerAddressById(userId: string | undefined, id: string) {
 export function useUpdateCustomerAddress(userId: string | undefined) {
   return useInvalidatingMutation(
     ({ id, data }: { id: string; data: UpdateCustomerAddressDTO }) =>
-      customerAdressesService.updateCustomerAddress(id, data),
+      customerAddressesService.updateCustomerAddress(id, data),
     () => [customerKeys.addresses(userId)],
   );
 }
 
 export function useCreateCustomerAddress(userId: string | undefined) {
   return useInvalidatingMutation(
-    (data: CreateCustomerAddress) => customerAdressesService.create(data),
+    (data: CreateCustomerAddress) => customerAddressesService.create(data),
     () => [customerKeys.addresses(userId)],
   );
 }

@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ProfileDetailHeader } from "@/components/customer/ProfileDetailHeader";
-import { useCustomerAddresses, useUpdateCustomerAddress } from "../queries/customer.queries";
-import { Input } from "../components/ui/input";
-import { useAuth } from "../auth/AuthProvider";
-import { CustomerAddress } from "../types/customer";
+import { useCustomerAddresses, useUpdateCustomerAddress } from "@/queries/customer.queries";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/auth/AuthProvider";
+import type { CustomerAddress } from "@/types/customer";
 import { useState } from "react";
-import { CustomerAdressDialog } from "../components/customer/CustomerAddressDialog";
+import { CustomerAddressDialog } from "@/components/customer/CustomerAddressDialog";
 import { Plus } from "lucide-react";
 
 export const Route = createFileRoute("/customer/profile/enderecos")({
@@ -103,7 +103,7 @@ function AddressesPage() {
       </div>
 
       {dialogOpen && (
-        <CustomerAdressDialog
+        <CustomerAddressDialog
           key={editing?._id ?? "new"}
           title={editing ? "Editar Endereço" : "Novo Endereço"}
           address={editing}

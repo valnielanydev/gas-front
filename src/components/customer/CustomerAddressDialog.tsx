@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { useAuth } from "../../auth/AuthProvider";
-import { useCreateCustomerAddress, useUpdateCustomerAddress } from "../../queries/customer.queries";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { Button } from "../ui/button";
-import { CustomerAddress } from "../../types/customer";
-import { geoService } from "../../services/geo.service";
+import { useAuth } from "@/auth/AuthProvider";
+import { useCreateCustomerAddress, useUpdateCustomerAddress } from "@/queries/customer.queries";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import type { CustomerAddress } from "@/types/customer";
+import { geoService } from "@/services/geo.service";
 import { toast } from "sonner";
-import { ApiError } from "../../integrations/api/client";
+import { ApiError } from "@/integrations/api/client";
 
 type Props = {
   address: CustomerAddress | null;
@@ -16,7 +16,7 @@ type Props = {
   title: string;
 };
 
-export function CustomerAdressDialog({ address, onClose, title }: Props) {
+export function CustomerAddressDialog({ address, onClose, title }: Props) {
   const { user } = useAuth();
   const updateAddress = useUpdateCustomerAddress(user?.id);
   const createAddress = useCreateCustomerAddress(user?.id);
